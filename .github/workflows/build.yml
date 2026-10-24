@@ -6,6 +6,11 @@ on:
     branches: [main]
     paths: ['app/**', 'native/**', '.github/workflows/build.yml']
   workflow_dispatch:
+    inputs:
+      castcore_stub:
+        description: 'No native/build-uwp.ps1 yet: link a do-nothing castcore built from the contract header (compile check of the XC_HAVE_CASTCORE path; the app logs xc_create failure)'
+        type: boolean
+        default: false
 
 concurrency:
   group: build-${{ github.ref }}
@@ -59,6 +64,42 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           if (!(Test-Path native/out/uwp-x64/lib/link.txt)) { throw "build-uwp.ps1 finished but native/out/uwp-x64/lib/link.txt is missing" }
           "link.txt:"; Get-Content native/out/uwp-x64/lib/link.txt
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: steps.core.outputs.have != 'true' && inputs.castcore_stub
+        with:
+          arch: x64
+
+      - name: Stub castcore from the contract header (compile check only)
+        if: steps.core.outputs.have != 'true' && inputs.castcore_stub
+        shell: pwsh
+        run: |
+          echo "::warning::castcore_stub: linking a do-nothing castcore; this package cannot receive anything"
+          $o = "native/out/uwp-x64"
+          New-Item -ItemType Directory -Force "$o/include", "$o/lib", "$env:RUNNER_TEMP/stub" | Out-Null
+          $md = Get-Content docs/contract.md -Raw
+          $m = [regex]::Match($md, '(?s)## 1\. castcore C API.*?```c\r?\n(.*?)```')
+          if (!$m.Success) { throw "castcore C block not found in docs/contract.md" }
+          "#pragma once`n#include <stddef.h>`n#include <stdint.h>`n" + $m.Groups[1].Value | Set-Content "$o/include/castcore.h"
+          @'
+          #include "castcore.h"
+          int xc_api_version(void) { return XC_API_VERSION; }
+          int64_t xc_now_ns(void) { return 0; }
+          xc_receiver *xc_create(const xc_config *cfg, const xc_callbacks *cb) {
+              (void)cfg; if (cb && cb->on_log) cb->on_log(cb->ctx, XC_LOG_ERROR, "castcore stub: no receiver in this build");
+              return 0;
+          }
+          int xc_start(xc_receiver *r) { (void)r; return -1; }
+          void xc_disconnect(xc_receiver *r) { (void)r; }
+          void xc_stop(xc_receiver *r) { (void)r; }
+          void xc_destroy(xc_receiver *r) { (void)r; }
+          const char *xc_version_string(void) { return "castcore stub"; }
+          '@ | Set-Content "$env:RUNNER_TEMP/stub/castcore_stub.c"
+          cl /nologo /c /O2 /Zl /W4 /WX /I "$o/include" /Fo"$env:RUNNER_TEMP/stub/castcore_stub.obj" "$env:RUNNER_TEMP/stub/castcore_stub.c"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          lib /nologo /out:"$o/lib/castcore_stub.lib" "$env:RUNNER_TEMP/stub/castcore_stub.obj"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          "castcore_stub.lib" | Set-Content "$o/lib/link.txt"
 
       - name: Signing cert from secret (stable key, so updates install over the old build)
         shell: pwsh
