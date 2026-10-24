@@ -38,6 +38,9 @@ typedef struct {
     int            pin_mode;        /* 0 = none, 1 = on-screen PIN every connection */
     unsigned short port;            /* 0 = default 7000 */
     const char    *data_dir;        /* writable dir for the persistent ed25519 identity / pairing data */
+    int            builtin_mdns;    /* 1 = castcore advertises itself with its own mDNS responder (UDP 5353, multicast,
+                                       SO_REUSEADDR) and never calls mdns_publish. Fallback for platforms where the OS
+                                       DNS-SD API can't advertise (app picks it via setting `mdnsMode`). */
 } xc_config;
 
 typedef struct {
@@ -158,6 +161,16 @@ Linux: `cmake -S native -B build && cmake --build build` builds `castcore` + `ho
 | `audioOffsetMs` | int | 0 | -300..300, lip-sync trim |
 | `showStats` | bool | false | stats overlay |
 | `devServer` | bool | true in dev builds, false in Store builds | diagnostics HTTP server |
+| `mdnsMode` | string | `"auto"` | `os` (DnssdServiceInstance) \| `builtin` (castcore responder) \| `auto` (os, fall back to builtin if registration fails) |
+
+### Window / XAML rules (platform sets them in App, everyone relies on them)
+- `ApplicationView::SetDesiredBoundsMode(UseCoreWindow)`: draw edge to edge (no Xbox overscan margins) so video is full-bleed.
+  UI keeps its own 5% TV-safe margins.
+- `ApplicationViewScaling::TrySetDisableLayoutScaling(true)`: layout in 1920×1080 effective pixels (not Xbox's 200% 960×540).
+  Media still sizes the swap chain from `SwapChainPanel` ActualSize × CompositionScaleX/Y and handles `CompositionScaleChanged`.
+- `Application::RequiresPointerMode(WhenRequested)`, `FocusVisualKind(Reveal)` off → UI draws its own calm focus visuals.
+- Keep the screen awake while mirroring with `DisplayRequest`, created lazily on the first session (never before
+  `Window::Activate`, that freezes the splash on Xbox).
 
 ## 4. Diagnostics (owner: platform) — there is no debugger on the console
 - `Diag::Log(level, tag, fmt...)` → in-memory ring buffer (~4000 lines) + `OutputDebugString`. castcore `on_log` is routed
