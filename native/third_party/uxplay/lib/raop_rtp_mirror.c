@@ -253,20 +253,29 @@ raop_rtp_mirror_thread(void *arg)
 
             // We're calling recv for a certain amount of data, so we need a timeout
 #ifdef _WIN32
-            /* xbox-cast: Winsock's SO_RCVTIMEO takes a DWORD in ms; the struct timeval below reads as
-               tv_sec = 0 = "no timeout" there, so recv() blocked forever and raop_rtp_mirror_stop() hung */
-            DWORD tv = 5;
+            /* xbox-cast: Winsock reports an SO_RCVTIMEO expiry as WSAETIMEDOUT (10060), not WSAEWOULDBLOCK, so the
+               EAGAIN/EWOULDBLOCK "continue" below never matched: the first pause in the stream longer than the
+               timeout (iPhone idle screen, Control Center closing) ended this thread while audio played on. Winsock
+               also documents the socket state as indeterminate after such a timeout. A non-blocking socket gives
+               WSAEWOULDBLOCK instead, which keeps the partial-read state and goes back to select(). */
+            u_long nonblocking = 1;
+            if (ioctlsocket(stream_fd, FIONBIO, &nonblocking) != 0) {
+                int sock_err = SOCKET_GET_ERROR();
+                logger_log(raop_rtp_mirror->logger, LOGGER_ERR,
+                           "raop_rtp_mirror could not make stream socket non-blocking %d %s", sock_err, SOCKET_ERROR_STRING(sock_err));
+                break;
+            }
 #else
             struct timeval tv;
             tv.tv_sec = 0;
             tv.tv_usec = 5000;
-#endif
             if (setsockopt(stream_fd, SOL_SOCKET, SO_RCVTIMEO, CAST &tv, sizeof(tv)) < 0) {
                 int sock_err = SOCKET_GET_ERROR();
                 logger_log(raop_rtp_mirror->logger, LOGGER_ERR,
                            "raop_rtp_mirror could not set stream socket timeout %d %s", sock_err, SOCKET_ERROR_STRING(sock_err));
                 break;
             }
+#endif
 
             int option = 1;
             if (setsockopt(stream_fd, SOL_SOCKET, SO_KEEPALIVE, CAST &option, sizeof(option)) < 0) {

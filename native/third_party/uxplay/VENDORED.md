@@ -31,7 +31,7 @@ Every change is marked `/* xbox-cast: ... */` in the source. List: see the secti
 | `lib/crypto.c` | ed25519 key file read/written through memory BIOs | OpenSSL's `BIO_new_fp` needs the applink shim on Windows builds |
 | `lib/srp.c` | no CryptoAPI seeding on Windows | `CryptAcquireContext` is not available to UWP apps; OpenSSL 3 seeds itself (BCryptGenRandom) |
 | `lib/raop_ntp.c` | comment only: kernel RX timestamps not used on Windows | documents the UWP limitation |
-| `lib/raop_rtp_mirror.c` | `IPPROTO_TCP` guard; Winsock `SO_RCVTIMEO` as DWORD ms | Winsock differences |
+| `lib/raop_rtp_mirror.c` | `IPPROTO_TCP` guard; on Windows the accepted mirror stream socket is non-blocking (FIONBIO) instead of `SO_RCVTIMEO` | Winsock reports a receive timeout as WSAETIMEDOUT, which upstream treats as fatal: video froze on the first pause in the stream while audio played on |
 | `lib/raop_rtp_mirror.c` | report the size of every codec packet (not only the first) | castcore emits `on_video_format` on rotation |
 | `lib/raop.h`, `lib/raop_handlers.h` | optional `report_client_address` callback | `on_client_connected` gets the client address |
 | `lib/fairplay_playfair.c` | bound-check the FairPlay message index | out-of-bounds read on malformed fp-setup |
