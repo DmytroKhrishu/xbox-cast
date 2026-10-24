@@ -28,11 +28,11 @@ directions auto-repeat on hold (system key repeat).
 | **B** hold 1 s | nothing | disconnect | disconnect | disconnect (only with a session) | same as tap |
 | **X** | nothing | sound on/off (toast "Sound off" / "Sound on") | same | nothing | nothing |
 | **Y** | nothing | reset view: zoom 1.0, pan centred | same | nothing | nothing |
-| **LB / RB** | nothing | previous / next view mode, toast with the mode name | same, the View pills follow | nothing | nothing |
-| **LT / RT** (analog) | nothing | zoom out / in, speed ∝ pressure; switches the view mode to Zoom first | same | nothing | nothing |
+| **LB / RB** | previous / next default view mode, toast | previous / next view mode, toast with the mode name | same, the View pills follow | nothing | nothing |
+| **LT / RT** (analog) | one 0.25 zoom step (sets Zoom mode), toast | zoom out / in, speed ∝ pressure; switches the view mode to Zoom first | same | nothing | nothing |
 | **Right stick** | nothing | pan, when zoom > 1.0 | nothing | nothing | nothing |
 | **D-pad / left stick** | nothing | zoom > 1.0: pan one step (5% of the view); otherwise show overlay | move focus inside the overlay row | move focus (see Settings) | nothing |
-| **View** | nothing | stats on/off | stats on/off | stats on/off | nothing |
+| **View** | stats on/off (toast) | stats on/off | stats on/off | stats on/off | nothing |
 | **Menu** | open Settings | open Settings (video keeps playing under a dim) | open Settings (overlay closes) | close Settings | nothing |
 
 View modes cycle in this order: **Fit → Fill → Zoom → Auto → Fit** (RB forward, LB backward). The chosen mode, the
@@ -40,27 +40,37 @@ zoom level, stats and sound are remembered (settings keys `viewMode`, `zoom`, `s
 Pan resets to centre on every new session and on Y.
 
 ### Overlay (bottom bar)
-One focus row, left to right: View pills **Fit · Fill · Zoom · Auto**, Zoom **−** / **+** (0.25 steps, 1.0–3.0),
-Audio delay **−** / **+** (20 ms steps, −300..300), **Stats** (switch), **Disconnect**.
+One focus row, left to right: View pills **Fit · Fill · Zoom · Auto**, then the zoom **−** / **+** (0.25 steps,
+1.0–3.0) **only while the mode is Zoom** (skipped by Left/Right otherwise), then Audio delay **−** / **+** (20 ms
+steps, −300..300).
 - Opens with focus on the current view mode pill. Up/Down do nothing (single row), Left/Right stop at the ends.
 - Auto-hides 4 s after the last input. Any input inside the overlay restarts the timer.
-- A on Disconnect disconnects immediately (it is a deliberate press on a focused button; hold B is the shortcut).
+- Stats and Disconnect are not buttons: the hint row says View Stats and hold B Disconnect (no duplicates).
+
+### Hints
+Every hint is the button's system glyph plus a text label (glyph table: `docs/ui.md` "Controller glyphs"). Hints
+only name buttons that do something on that screen:
+- Idle: LB RB View mode · LT RT Zoom · View Stats · Menu Settings · Hold B Disconnect (receiver not available: Menu
+  Settings only).
+- Overlay: X Sound · View Stats · B Close · Hold B Disconnect.
+- Settings: A <what A does on the focused row> · B Back. PIN: B Cancel.
 
 ### Settings (in-page panel)
-Left: category list (**Receiver**, **Picture and Sound**, **Advanced**, **About**) and the help text of the
+Left: category list (**Receiver**, **Picture and Sound**, **About**) and the help text of the
 focused row. Right: that category's rows. Nothing scrolls.
 - Opens with focus on the first category. Up/Down move through categories; the right pane follows focus.
 - Right (or A) on a category → first row. B in rows → back to the category. B on a category → close.
 - Up/Down move through rows. Left from a row that has no value to adjust (Name, About) → back to the category.
-- **Choice rows** (Resolution, Frame rate, Default view, Discovery): Left/Right step the value, A steps forward and
-  wraps. Chevrons show on the focused row.
+- **Choice rows** (Resolution, Frame rate, Default view): Left/Right step the value, A steps forward and wraps.
+  ‹ › sit in every choice row (dimmed at rest, full on focus).
 - **Switch rows** (H.265, Require code, Remove black bars, Sound, Show stats): A toggles, Left = Off, Right = On.
   The row always shows the state as text ("On"/"Off") plus the switch.
 - **Audio delay**: Left/Right −/+ 20 ms, clamped to −300..300; A resets to 0.
-- **Name**: A opens the system on-screen keyboard; Enter/accept saves (trimmed, 1–40 chars, empty restores the
+- **Name**: a pencil marks it editable; A opens the system on-screen keyboard; Enter/accept saves (trimmed, 1–40 chars, empty restores the
   previous name); B in the keyboard cancels.
 - Every change is saved and applied immediately. Rows marked *Applies on next connection* (Name, Resolution,
-  Frame rate, H.265, Require code, Discovery) restart the receiver once no session is active.
+  Frame rate, H.265, Require code) restart the receiver once no session is active. `mdnsMode` has no row
+  (dev server only, `{"setting":{"mdnsMode":"os"}}`).
 
 ### Hold B to disconnect
 Only while a session exists. 200 ms after B goes down a ring fades in at the bottom centre with the label

@@ -62,6 +62,9 @@ class Bridge {
     void RequestRestart();     // receiver settings changed: restart now if idle, else when the session ends
     void OnSessionEnded();     // runs a pending restart
     std::wstring CoreVersion();
+    // "" while the receiver runs or is (re)starting; otherwise why it is not available (castcore not built in,
+    // xc_create / xc_start failed). The idle screen shows a text status line only when this is non-empty.
+    std::wstring ReceiverProblem();
 
     // Logging with tag "ui". level: 'D' 'I' 'W' 'E'.
     void Log(char level, std::string const& message);

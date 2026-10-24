@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cwctype>
+#include <functional>
 #include <winrt/Windows.ApplicationModel.h>
 #include <winrt/Windows.ApplicationModel.Resources.h>
 #include <winrt/Windows.Data.Json.h>
@@ -166,10 +167,15 @@ void MainPage::InitializeComponent() {
         anim::Fade(ConnectingHint(), 1, anim::kSlow);
     });
 
-    // Overlay focus order (single row, left to right).
+    // Overlay focus order (single row, left to right). Zoom -/+ (4, 5) are skipped unless the mode is Zoom.
+    // Stats (View) and Disconnect (hold B) are button hints only, no focusable duplicates.
     m_ovItems = {ModeFit(), ModeFill(), ModeZoom(), ModeAuto(), ZoomOutButton(), ZoomInButton(),
-                 DelayDownButton(), DelayUpButton(), StatsToggleButton(), DisconnectButton()};
-    m_cats = {CatReceiver(), CatPicture(), CatAdvanced(), CatAbout()};
+                 DelayDownButton(), DelayUpButton()};
+    m_cats = {CatReceiver(), CatPicture(), CatAbout()};
+
+    // Start failures fire no state event: poll the receiver's health (cheap, one mutex) while the idle screen shows.
+    m_receiverTimer.Interval(Ms(2000));
+    m_receiverTimer.Tick([this](IInspectable const&, IInspectable const&) { UpdateReceiverStatus(); });
 
     NameBox().KeyDown([this](IInspectable const&, KeyRoutedEventArgs const& e) {
         if (e.Key() == Windows::System::VirtualKey::Enter) {
@@ -250,6 +256,10 @@ void MainPage::HandleLoaded() {
     PushMedia(true);
     UpdateNetwork();
     SetState(b.State());
+    if (m_state == SessionState::Idle) {
+        UpdateReceiverStatus();
+        m_receiverTimer.Start();
+    }
     StartBackdrop(m_state == SessionState::Idle);
     Focus(FocusState::Programmatic);
 }
@@ -334,16 +344,17 @@ void MainPage::BuildRows() {
         r.key = key;
         r.restart = restart;
         r.help = help;
-        // Collect the chevrons (FontIcons) inside the row's value StackPanel.
-        if (auto grid = btn.Content().try_as<Grid>()) {
-            for (auto const& child : grid.Children()) {
-                if (auto sp = child.try_as<StackPanel>()) {
-                    for (auto const& c : sp.Children()) {
-                        if (auto icon = c.try_as<FontIcon>()) r.chev.push_back(icon);
-                    }
-                }
+        // Collect the accessory icons (chevrons / pencil) anywhere inside the row: dimmed at rest, full on focus.
+        std::function<void(DependencyObject const&)> collect = [&](DependencyObject const& o) {
+            if (auto icon = o.try_as<FontIcon>()) {
+                r.chev.push_back(icon);
+                return;
             }
-        }
+            if (auto panel = o.try_as<Panel>()) {
+                for (auto const& c : panel.Children()) collect(c);
+            }
+        };
+        if (auto content = btn.Content().try_as<DependencyObject>()) collect(content);
     };
     auto sw = [](Row& r, Border const& track, Shapes::Ellipse const& knob) {
         r.track = track;
@@ -400,15 +411,8 @@ void MainPage::BuildRows() {
     rp[3].def = L"0";
     rp[4].def = L"0";
 
-    auto& ra = m_rows[2];
-    ra.resize(1);
-    setup(ra[0], RowMdns(), ValMdns(), RowKind::Choice, L"mdnsMode", true,
-          L"How this screen announces itself on the network. Built-in is the default; System is experimental.");
-    ra[0].choices = {{L"builtin", L"Built-in"}, {L"os", L"System"}};
-    ra[0].def = L"builtin";
-
-    TranslateTransform statsKnob;
-    StatsSwitchKnob().RenderTransform(statsKnob);
+    // m_rows[2] (About) stays empty: read only. mdnsMode has no UI row (built-in is the only proven mode); it stays
+    // reachable through the dev server: POST /cmd {"setting":{"mdnsMode":"os"}}.
 }
 
 // ============================================================================================ model
@@ -443,11 +447,12 @@ void MainPage::RefreshAll() {
     DelayDownButton().Opacity(m_delay <= kDelayMin ? 0.35 : 1.0);
     DelayUpButton().Opacity(m_delay >= kDelayMax ? 0.35 : 1.0);
 
-    bool statsFocused = m_overlay && m_ovFocus == 8;
-    StatsSwitchTrack().Background(m_showStats ? (statsFocused ? MakeBrush(255, 0x4D, 0x66, 0xD6) : MakeBrush(255, 0x8E, 0xA8, 0xFF))
-                                              : (statsFocused ? MakeBrush(0x40, 0x0B, 0x0B, 0x10) : MakeBrush(0x42, 255, 255, 255)));
-    if (auto t = StatsSwitchKnob().RenderTransform().try_as<TranslateTransform>()) {
-        anim::To(t, L"X", m_showStats ? 26 : 0, 200);
+    // Zoom stepper only exists in Zoom mode (no caption: its value says it).
+    bool zoomMode = m_viewMode == L"Zoom";
+    ZoomGroup().Visibility(zoomMode ? Visibility::Visible : Visibility::Collapsed);
+    if (m_overlay && !m_ovItems.empty() && !OverlayItemVisible(m_ovFocus)) {
+        m_ovFocus = ModeIndex(m_viewMode);
+        m_ovItems[m_ovFocus].Focus(FocusState::Keyboard);
     }
 
     for (int c = 0; c < 3; c++) {
@@ -504,6 +509,7 @@ void MainPage::ZoomStep(double d) {
     xcui::Bridge::Get().SetDouble(L"zoom", m_zoom);
     RefreshAll();
     PushMedia(false);
+    if (m_state == SessionState::Idle && !m_settings) ShowToast(L"Zoom " + ZoomLabel(m_zoom), L"", 1600);
 }
 
 void MainPage::SetZoomLive(double z) {
@@ -621,6 +627,7 @@ void MainPage::SetState(SessionState s) {
         anim::Fade(IdleLayer(), 1, anim::kCalm);
         anim::Fade(IdleContent(), 0, anim::kNormal);
         anim::Fade(IdleHints(), 0, anim::kNormal);
+        m_receiverTimer.Stop();
         anim::Fade(ConnectingContent(), 1, anim::kCalm);
         anim::Fade(ConnectingHint(), 0, 1);
         m_hintTimer.Start();
@@ -675,6 +682,8 @@ void MainPage::SetState(SessionState s) {
         anim::Fade(ConnectingContent(), 0, anim::kNormal);
         anim::Fade(IdleContent(), 1, anim::kCalm);
         anim::Fade(IdleHints(), 1, anim::kCalm);
+        UpdateReceiverStatus();
+        m_receiverTimer.Start();
         m_client.clear();
         xcui::Bridge::Get().OnSessionEnded();
         break;
@@ -760,8 +769,37 @@ void MainPage::HideOverlay() {
 
 void MainPage::FocusOverlay(int index) {
     m_ovFocus = std::clamp(index, 0, static_cast<int>(m_ovItems.size()) - 1);
+    if (!OverlayItemVisible(m_ovFocus)) m_ovFocus = ModeIndex(m_viewMode);
     m_ovItems[m_ovFocus].Focus(FocusState::Keyboard);
     RefreshAll();
+}
+
+bool MainPage::OverlayItemVisible(int index) const {
+    if (index == 4 || index == 5) return m_viewMode == L"Zoom";
+    return index >= 0 && index < static_cast<int>(m_ovItems.size());
+}
+
+void MainPage::MoveOverlayFocus(int dir) {
+    int n = static_cast<int>(m_ovItems.size());
+    int i = m_ovFocus + dir;
+    while (i >= 0 && i < n && !OverlayItemVisible(i)) i += dir;
+    if (i >= 0 && i < n) FocusOverlay(i);
+}
+
+void MainPage::UpdateReceiverStatus() {
+    std::wstring problem = xcui::Bridge::Get().ReceiverProblem();
+    if (problem == m_receiverProblem) return;
+    m_receiverProblem = problem;
+    bool bad = !problem.empty();
+    Logf(bad ? 'W' : 'I', "idle receiver status: %s", bad ? winrt::to_string(problem).c_str() : "ready");
+    // Ready: no status line at all (the screen itself says ready). Not ready: plain text, no dot.
+    IdleStatusText().Text(bad ? L"Screen Mirroring is not available" : L"");
+    IdleStatusText().Visibility(bad ? Visibility::Visible : Visibility::Collapsed);
+    IdleHowText().Visibility(bad ? Visibility::Collapsed : Visibility::Visible);
+    IdleErrorText().Visibility(bad ? Visibility::Visible : Visibility::Collapsed);
+    IdleSessionHints().Visibility(bad ? Visibility::Collapsed : Visibility::Visible);
+    IdleDisconnectHint().Visibility(bad ? Visibility::Collapsed : Visibility::Visible);
+    IdleSettingsHint().Margin(ThicknessHelper::FromLengths(8, 0, bad ? 0 : 44, 0));   // last hint: no trailing gap
 }
 
 void MainPage::ActivateOverlayItem() {
@@ -771,8 +809,6 @@ void MainPage::ActivateOverlayItem() {
     case 5: ZoomStep(0.25); break;
     case 6: DelayStep(-20); break;
     case 7: DelayStep(20); break;
-    case 8: SetShowStats(!m_showStats); break;
-    case 9: Disconnect(); break;
     default: break;
     }
 }
@@ -781,8 +817,8 @@ void MainPage::OverlayKey(Key k) {
     m_overlayTimer.Stop();
     m_overlayTimer.Start();
     switch (k) {
-    case Key::Left: FocusOverlay(m_ovFocus - 1); break;
-    case Key::Right: FocusOverlay(m_ovFocus + 1); break;
+    case Key::Left: MoveOverlayFocus(-1); break;
+    case Key::Right: MoveOverlayFocus(1); break;
     case Key::A: ActivateOverlayItem(); break;
     case Key::X: SetAudioOn(!m_audioOn, true); break;
     case Key::Y: ResetView(); break;
@@ -970,6 +1006,18 @@ void MainPage::PressKey(Key k, bool repeat) {
     case Layer::Settings: SettingsKey(k); break;
     case Layer::Overlay: OverlayKey(k); break;
     case Layer::Mirroring: MirrorKey(k); break;
+    case Layer::Idle: IdleKey(k); break;
+    default: break;
+    }
+}
+
+void MainPage::IdleKey(Key k) {
+    // The idle legend lists these: they set the view the next session starts with (toast confirms).
+    switch (k) {
+    case Key::LB: CycleViewMode(-1); break;
+    case Key::RB: CycleViewMode(1); break;
+    case Key::LT: ZoomStep(-0.25); break;
+    case Key::RT: ZoomStep(0.25); break;
     default: break;
     }
 }
@@ -1115,7 +1163,7 @@ void MainPage::OnCommand(std::wstring const& json) {
 // ============================================================================================ settings
 
 std::vector<MainPage::Row>& MainPage::Rows(int category) {
-    return m_rows[std::clamp(category, 0, 3)];
+    return m_rows[std::clamp(category, 0, 2)];
 }
 
 void MainPage::OpenSettings() {
@@ -1142,10 +1190,10 @@ void MainPage::CloseSettings() {
 }
 
 void MainPage::FocusCategory(int index) {
-    m_cat = std::clamp(index, 0, 3);
+    m_cat = std::clamp(index, 0, 2);
     m_row = -1;
-    StackPanel panes[] = {PaneReceiver(), PanePicture(), PaneAdvanced(), PaneAbout()};
-    for (int i = 0; i < 4; i++) {
+    StackPanel panes[] = {PaneReceiver(), PanePicture(), PaneAbout()};
+    for (int i = 0; i < 3; i++) {
         panes[i].Visibility(i == m_cat ? Visibility::Visible : Visibility::Collapsed);
         m_cats[i].Background(MakeBrush(0, 0, 0, 0));
     }
@@ -1158,7 +1206,7 @@ void MainPage::FocusRow(int index) {
     auto& rows = Rows(m_cat);
     if (rows.empty()) return;
     m_row = std::clamp(index, 0, static_cast<int>(rows.size()) - 1);
-    for (int i = 0; i < 4; i++) m_cats[i].Background(i == m_cat ? MakeBrush(0x14, 255, 255, 255) : MakeBrush(0, 0, 0, 0));
+    for (int i = 0; i < 3; i++) m_cats[i].Background(i == m_cat ? MakeBrush(0x14, 255, 255, 255) : MakeBrush(0, 0, 0, 0));
     rows[m_row].btn.Focus(FocusState::Keyboard);
     RefreshAll();
     UpdateHelp();
@@ -1175,12 +1223,25 @@ void MainPage::UpdateHelp() {
         static wchar_t const* const catHelp[] = {
             L"How this screen appears to your iPhone and what it accepts.",
             L"How the picture fits the TV, and the sound.",
-            L"Network options for troubleshooting.",
             L"Version and licenses.",
         };
         help = catHelp[m_cat];
     }
     HelpText().Text(help);
+    // Footer A hint names what A does right here (B Back is always shown).
+    wchar_t const* aText = nullptr;
+    if (m_row >= 0 && m_row < static_cast<int>(Rows(m_cat).size())) {
+        switch (Rows(m_cat)[m_row].kind) {
+        case RowKind::Edit: aText = L"Edit"; break;
+        case RowKind::Choice: aText = L"Change"; break;
+        case RowKind::Switch: aText = L"Turn on or off"; break;
+        case RowKind::Delay: aText = L"Reset"; break;
+        }
+    } else if (!Rows(m_cat).empty()) {
+        aText = L"Open";
+    }
+    SettingsAHint().Visibility(aText ? Visibility::Visible : Visibility::Collapsed);
+    if (aText) SettingsAHintText().Text(aText);
     RestartNote().Visibility(restart ? Visibility::Visible : Visibility::Collapsed);
 }
 
@@ -1188,7 +1249,7 @@ void MainPage::SettingsKey(Key k) {
     if (m_row < 0) {
         switch (k) {
         case Key::Up: if (m_cat > 0) FocusCategory(m_cat - 1); break;
-        case Key::Down: if (m_cat < 3) FocusCategory(m_cat + 1); break;
+        case Key::Down: if (m_cat < 2) FocusCategory(m_cat + 1); break;
         case Key::Right: case Key::A: if (!Rows(m_cat).empty()) FocusRow(0); break;
         default: break;
         }
@@ -1308,7 +1369,7 @@ void MainPage::UpdateRow(Row& r, bool focused) {
     case RowKind::Delay: text = DelayLabel(std::clamp(b.GetInt(r.key, 0), kDelayMin, kDelayMax)); break;
     }
     r.val.Text(text);
-    for (auto& c : r.chev) c.Opacity(focused ? 1.0 : 0.0);
+    for (auto& c : r.chev) c.Opacity(focused ? 1.0 : 0.45);
 }
 
 }  // namespace winrt::XboxCast::implementation

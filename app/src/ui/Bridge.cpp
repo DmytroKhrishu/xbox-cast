@@ -215,6 +215,14 @@ void Bridge::RequestRestart() {
          ::XboxCast::ReceiverStateName(::XboxCast::ReceiverHost::Instance().State()));
 }
 
+std::wstring Bridge::ReceiverProblem() {
+    auto& host = ::XboxCast::ReceiverHost::Instance();
+    if (host.State() != ::XboxCast::ReceiverState::Stopped) return {};
+    // Stopped with no error = starting up or between Stop and Start of a restart: not a problem yet.
+    std::string e = host.LastError();
+    return std::wstring(e.begin(), e.end());
+}
+
 void Bridge::OnSessionEnded() {
 }
 

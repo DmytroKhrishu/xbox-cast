@@ -18,10 +18,10 @@
         <SolidColorBrush x:Key="FillBrush" Color="#14FFFFFF"/>
         <SolidColorBrush x:Key="Fill2Brush" Color="#0DFFFFFF"/>
         <SolidColorBrush x:Key="SegBrush" Color="#0FFFFFFF"/>
-        <SolidColorBrush x:Key="PanelBrush" Color="#F014141B"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#FF8EA8FF"/>
         <SolidColorBrush x:Key="AccentFillBrush" Color="#388EA8FF"/>
-        <SolidColorBrush x:Key="KeyBrush" Color="#1FFFFFFF"/>
+        <!-- Anything drawn over live video is opaque: the owner found see-through panels unreadable. -->
+        <SolidColorBrush x:Key="PanelSolidBrush" Color="#FF14141B"/>
         <SolidColorBrush x:Key="TransparentBrush" Color="#00000000"/>
 
         <Style x:Key="CaptionText" TargetType="TextBlock">
@@ -30,27 +30,30 @@
             <Setter Property="CharacterSpacing" Value="60"/>
             <Setter Property="Foreground" Value="{StaticResource Text2Brush}"/>
         </Style>
-        <Style x:Key="KeyCap" TargetType="Border">
-            <Setter Property="MinWidth" Value="48"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="CornerRadius" Value="20"/>
-            <Setter Property="Background" Value="{StaticResource KeyBrush}"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
-        </Style>
-        <Style x:Key="KeyCapText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="20"/>
-            <Setter Property="FontWeight" Value="Bold"/>
+        <!-- Controller hints: system controller glyph(s) + a text label, always both (docs/ui.md "Controller glyphs").
+             Segoe Fluent Icons / Segoe MDL2 Assets carry the same code points: ButtonA F093, ButtonB F094, ButtonY F095,
+             ButtonX F096, ButtonMenu EDE3, ButtonView2 EECA, TriggerLeft F10A, TriggerRight F10B, BumperLeft F10C,
+             BumperRight F10D. -->
+        <FontFamily x:Key="GlyphFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+        <Style x:Key="HintGlyph" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource GlyphFont}"/>
+            <Setter Property="FontSize" Value="36"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
         </Style>
         <Style x:Key="HintText" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="26"/>
+            <Setter Property="FontSize" Value="28"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Margin" Value="8,0,44,0"/>
             <Setter Property="Foreground" Value="{StaticResource Text2Brush}"/>
+        </Style>
+        <Style x:Key="HintLastText" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+        <Style x:Key="HintPreText" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+            <Setter Property="Margin" Value="0,0,8,0"/>
         </Style>
 
         <!-- Pill button: resting fill = Background; focus = white fill, dark text, scale 1.06, soft accent halo. -->
@@ -227,13 +230,19 @@
         <Style x:Key="RowValue" TargetType="TextBlock">
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Opacity" Value="0.72"/>
-            <Setter Property="Margin" Value="18,0"/>
+            <Setter Property="Margin" Value="0,0,22,0"/>
+        </Style>
+        <!-- Row accessory slot: fixed 60 px at the right edge of every row so all values end on the same x.
+             Pencil (Edit, A opens the keyboard), chevrons (Choice / Delay) or the switch. Dimmed at rest, full on focus. -->
+        <Style x:Key="AccessorySlot" TargetType="Grid">
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
         </Style>
         <Style x:Key="Chevron" TargetType="FontIcon">
             <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
             <Setter Property="FontSize" Value="22"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="Opacity" Value="0.45"/>
         </Style>
         <Style x:Key="SwitchTrack" TargetType="Border">
             <Setter Property="Width" Value="60"/>
@@ -267,12 +276,10 @@
             <!-- Composition visuals (drifting radial blobs + vignette) are attached here from code. -->
             <Grid x:Name="Backdrop"/>
 
-            <StackPanel x:Name="IdleContent" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,330,96,0">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,28">
-                    <Ellipse Width="14" Height="14" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                    <TextBlock x:Name="IdleStatusText" Text="Ready for Screen Mirroring" FontSize="32" FontWeight="SemiBold"
-                               Foreground="{StaticResource Text2Brush}"/>
-                </StackPanel>
+            <StackPanel x:Name="IdleContent" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,350,96,0">
+                <!-- Only shown when the receiver is NOT ready (castcore failed to start / not built in). Plain text, no dot. -->
+                <TextBlock x:Name="IdleStatusText" Text="" FontSize="32" FontWeight="SemiBold" HorizontalAlignment="Center"
+                           Margin="0,0,0,28" Visibility="Collapsed" Foreground="{StaticResource Text2Brush}"/>
                 <TextBlock x:Name="IdleNameText" Text="Xbox" FontSize="136" FontWeight="SemiBold" CharacterSpacing="-20"
                            HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="1728"
                            Foreground="{StaticResource TextBrush}"/>
@@ -281,6 +288,10 @@
                            Foreground="{StaticResource Text2Brush}">
                     <Run Text="On your iPhone, open Control Center, tap "/><Run Text="Screen Mirroring" Foreground="{StaticResource TextBrush}"/><Run Text=" and choose "/><Run x:Name="IdleHowName" Text="Xbox" Foreground="{StaticResource TextBrush}"/><Run Text="."/>
                 </TextBlock>
+                <TextBlock x:Name="IdleErrorText" FontSize="40" FontWeight="Medium" LineHeight="56" TextWrapping="Wrap"
+                           TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="1100" Margin="0,44,0,0"
+                           Visibility="Collapsed" Foreground="{StaticResource Text2Brush}"
+                           Text="The receiver could not start. Restart the app; if it keeps happening, check the network."/>
             </StackPanel>
 
             <StackPanel x:Name="ConnectingContent" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,360,96,0"
@@ -313,110 +324,104 @@
                     <TextBlock x:Name="VersionText" Text="0.0.0" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource Text2Brush}"/>
                 </StackPanel>
             </StackPanel>
-            <StackPanel x:Name="IdleHints" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,96,54">
-                <Border Style="{StaticResource KeyCap}"><TextBlock Text="Menu" Style="{StaticResource KeyCapText}"/></Border>
-                <TextBlock Text="Settings" Style="{StaticResource HintText}"/>
+            <!-- Controls legend while waiting (docs/design/png/idle.png): one row, glyph + label. -->
+            <StackPanel x:Name="IdleHints" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,96,54"
+                        Height="64">
+                <StackPanel x:Name="IdleSessionHints" Orientation="Horizontal">
+                    <TextBlock Text="&#xF10C;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="&#xF10D;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="View mode" Style="{StaticResource HintText}"/>
+                    <TextBlock Text="&#xF10A;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="&#xF10B;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="Zoom" Style="{StaticResource HintText}"/>
+                    <TextBlock Text="&#xEECA;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="Stats" Style="{StaticResource HintText}"/>
+                </StackPanel>
+                <TextBlock Text="&#xEDE3;" Style="{StaticResource HintGlyph}"/>
+                <TextBlock x:Name="IdleSettingsHint" Text="Settings" Style="{StaticResource HintText}"/>
+                <StackPanel x:Name="IdleDisconnectHint" Orientation="Horizontal">
+                    <TextBlock Text="Hold" Style="{StaticResource HintPreText}"/>
+                    <TextBlock Text="&#xF094;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="Disconnect" Style="{StaticResource HintLastText}"/>
+                </StackPanel>
             </StackPanel>
         </Grid>
 
         <!-- ============ Mirroring overlay (bottom bar) ============ -->
+        <!-- Opaque panel, no scrim: nothing see-through over the video (docs/design/png/overlay.png). One control row:
+             view-mode pills, the zoom stepper only in Zoom mode (no caption: the value says it), audio delay at the right.
+             Stats and Disconnect are only button hints (View, hold B): no duplicate buttons. -->
         <Grid x:Name="OverlayLayer" Visibility="Collapsed" Opacity="0">
-            <Rectangle Height="520" VerticalAlignment="Bottom" IsHitTestVisible="False">
-                <Rectangle.Fill>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#00000000" Offset="0"/>
-                        <GradientStop Color="#8C000000" Offset="0.6"/>
-                        <GradientStop Color="#B3000000" Offset="1"/>
-                    </LinearGradientBrush>
-                </Rectangle.Fill>
-            </Rectangle>
-            <Border x:Name="OverlayPanel" VerticalAlignment="Bottom" Margin="96,0,96,54" Padding="40,34,40,36"
-                    CornerRadius="36" Background="{StaticResource PanelBrush}">
+            <Border x:Name="OverlayPanel" VerticalAlignment="Bottom" Margin="96,0,96,54" Padding="40,30,40,30"
+                    CornerRadius="32" Background="{StaticResource PanelSolidBrush}" BorderBrush="#0FFFFFFF" BorderThickness="1">
                 <Border.RenderTransform>
                     <TranslateTransform x:Name="OverlayShift" Y="0"/>
                 </Border.RenderTransform>
                 <StackPanel>
-                    <Grid Margin="0,0,0,30">
+                    <Grid Margin="0,0,0,24" Height="48">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock x:Name="ClientNameText" Text="iPhone" FontSize="40" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
-                            <TextBlock Text="Screen Mirroring" FontSize="28" FontWeight="Medium" Margin="20,0,0,0" VerticalAlignment="Bottom"
+                            <TextBlock x:Name="ClientNameText" Text="iPhone" FontSize="36" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                            <TextBlock Text="Screen Mirroring" FontSize="28" FontWeight="Medium" Margin="18,0,0,2" VerticalAlignment="Bottom"
                                        Foreground="{StaticResource Text2Brush}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="LB" Style="{StaticResource KeyCapText}"/></Border>
-                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="RB" Style="{StaticResource KeyCapText}"/></Border>
-                            <TextBlock Text="View" Style="{StaticResource HintText}" Margin="6,0,40,0"/>
-                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="LT" Style="{StaticResource KeyCapText}"/></Border>
-                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="RT" Style="{StaticResource KeyCapText}"/></Border>
-                            <TextBlock Text="Zoom" Style="{StaticResource HintText}" Margin="6,0,40,0"/>
-                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="Hold B" Style="{StaticResource KeyCapText}"/></Border>
-                            <TextBlock Text="Disconnect" Style="{StaticResource HintText}"/>
+                            <TextBlock Text="&#xF096;" Style="{StaticResource HintGlyph}"/>
+                            <TextBlock Text="Sound" Style="{StaticResource HintText}"/>
+                            <TextBlock Text="&#xEECA;" Style="{StaticResource HintGlyph}"/>
+                            <TextBlock Text="Stats" Style="{StaticResource HintText}"/>
+                            <TextBlock Text="&#xF094;" Style="{StaticResource HintGlyph}"/>
+                            <TextBlock Text="Close" Style="{StaticResource HintText}"/>
+                            <TextBlock Text="Hold" Style="{StaticResource HintPreText}"/>
+                            <TextBlock Text="&#xF094;" Style="{StaticResource HintGlyph}"/>
+                            <TextBlock Text="Disconnect" Style="{StaticResource HintLastText}"/>
                         </StackPanel>
                     </Grid>
                     <Grid x:Name="OverlayRow">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0" Margin="0,0,36,0" VerticalAlignment="Bottom">
-                            <TextBlock Text="VIEW" Style="{StaticResource CaptionText}" Margin="4,0,0,12"/>
-                            <Border CornerRadius="38" Background="{StaticResource SegBrush}" Padding="3,4">
-                                <StackPanel Orientation="Horizontal">
-                                    <Button x:Name="ModeFit" Style="{StaticResource SegButton}" Tag="Fit">
-                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeFitDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Fit"/></StackPanel>
-                                    </Button>
-                                    <Button x:Name="ModeFill" Style="{StaticResource SegButton}" Tag="Fill">
-                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeFillDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Fill"/></StackPanel>
-                                    </Button>
-                                    <Button x:Name="ModeZoom" Style="{StaticResource SegButton}" Tag="Zoom">
-                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeZoomDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Zoom"/></StackPanel>
-                                    </Button>
-                                    <Button x:Name="ModeAuto" Style="{StaticResource SegButton}" Tag="Auto">
-                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeAutoDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Auto"/></StackPanel>
-                                    </Button>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1" Margin="0,0,36,0" VerticalAlignment="Bottom">
-                            <TextBlock Text="ZOOM" Style="{StaticResource CaptionText}" Margin="4,0,0,12"/>
+                        <Border Grid.Column="0" CornerRadius="38" Background="{StaticResource SegBrush}" Padding="3,4" VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal">
-                                <Button x:Name="ZoomOutButton" Style="{StaticResource RoundButton}">
-                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE738;" FontSize="24"/>
+                                <Button x:Name="ModeFit" Style="{StaticResource SegButton}" Tag="Fit">
+                                    <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeFitDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Fit"/></StackPanel>
                                 </Button>
-                                <TextBlock x:Name="ZoomText" Text="1.0x" FontSize="28" FontWeight="SemiBold" Width="112" TextAlignment="Center"
-                                           VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
-                                <Button x:Name="ZoomInButton" Style="{StaticResource RoundButton}">
-                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE710;" FontSize="24"/>
+                                <Button x:Name="ModeFill" Style="{StaticResource SegButton}" Tag="Fill">
+                                    <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeFillDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Fill"/></StackPanel>
+                                </Button>
+                                <Button x:Name="ModeZoom" Style="{StaticResource SegButton}" Tag="Zoom">
+                                    <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeZoomDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Zoom"/></StackPanel>
+                                </Button>
+                                <Button x:Name="ModeAuto" Style="{StaticResource SegButton}" Tag="Auto">
+                                    <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeAutoDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Auto"/></StackPanel>
                                 </Button>
                             </StackPanel>
+                        </Border>
+                        <StackPanel x:Name="ZoomGroup" Grid.Column="1" Orientation="Horizontal" Margin="24,0,0,0" VerticalAlignment="Center"
+                                    Visibility="Collapsed">
+                            <Button x:Name="ZoomOutButton" Style="{StaticResource RoundButton}">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE738;" FontSize="22"/>
+                            </Button>
+                            <TextBlock x:Name="ZoomText" Text="1.0x" FontSize="28" FontWeight="SemiBold" Width="104" TextAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                            <Button x:Name="ZoomInButton" Style="{StaticResource RoundButton}">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE710;" FontSize="22"/>
+                            </Button>
                         </StackPanel>
-                        <StackPanel Grid.Column="2" Margin="0,0,36,0" VerticalAlignment="Bottom">
-                            <TextBlock Text="AUDIO DELAY" Style="{StaticResource CaptionText}" Margin="4,0,0,12"/>
-                            <StackPanel Orientation="Horizontal">
-                                <Button x:Name="DelayDownButton" Style="{StaticResource RoundButton}">
-                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE738;" FontSize="24"/>
-                                </Button>
-                                <TextBlock x:Name="DelayText" Text="0 ms" FontSize="28" FontWeight="SemiBold" Width="124" TextAlignment="Center"
-                                           VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
-                                <Button x:Name="DelayUpButton" Style="{StaticResource RoundButton}">
-                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE710;" FontSize="24"/>
-                                </Button>
-                            </StackPanel>
+                        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Audio delay" FontSize="28" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,18,0"
+                                       Foreground="{StaticResource Text2Brush}"/>
+                            <Button x:Name="DelayDownButton" Style="{StaticResource RoundButton}">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE738;" FontSize="22"/>
+                            </Button>
+                            <TextBlock x:Name="DelayText" Text="0 ms" FontSize="28" FontWeight="SemiBold" Width="116" TextAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                            <Button x:Name="DelayUpButton" Style="{StaticResource RoundButton}">
+                                <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE710;" FontSize="22"/>
+                            </Button>
                         </StackPanel>
-                        <Button x:Name="StatsToggleButton" Grid.Column="4" Style="{StaticResource PillButton}" VerticalAlignment="Bottom" Margin="0,0,24,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Stats" VerticalAlignment="Center" Margin="0,0,16,0"/>
-                                <Border x:Name="StatsSwitchTrack" Style="{StaticResource SwitchTrack}">
-                                    <Ellipse x:Name="StatsSwitchKnob" Style="{StaticResource SwitchKnob}"/>
-                                </Border>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="DisconnectButton" Grid.Column="5" Style="{StaticResource PillButton}" VerticalAlignment="Bottom"
-                                Content="Disconnect"/>
                     </Grid>
                 </StackPanel>
             </Border>
@@ -424,7 +429,7 @@
 
         <!-- ============ Stats (never takes focus) ============ -->
         <Border x:Name="StatsPanel" Visibility="Collapsed" Opacity="0" Width="470" VerticalAlignment="Top" HorizontalAlignment="Right"
-                Margin="0,54,96,0" Padding="34,30,34,32" CornerRadius="28" Background="#D60E0E14" BorderBrush="#12FFFFFF"
+                Margin="0,54,96,0" Padding="34,30,34,32" CornerRadius="28" Background="{StaticResource PanelSolidBrush}" BorderBrush="#12FFFFFF"
                 BorderThickness="1" IsHitTestVisible="False">
             <StackPanel>
                 <TextBlock Text="STATS" Style="{StaticResource CaptionText}" Margin="0,0,0,18"/>
@@ -441,12 +446,12 @@
         <StackPanel x:Name="HoldRing" Visibility="Collapsed" Opacity="0" VerticalAlignment="Bottom" HorizontalAlignment="Center"
                     Margin="0,0,0,380" IsHitTestVisible="False">
             <Grid Width="96" Height="96" HorizontalAlignment="Center">
-                <Ellipse Fill="#E614141B"/>
+                <Ellipse Fill="{StaticResource PanelSolidBrush}"/>
                 <Ellipse x:Name="HoldTrack" Margin="6" Stroke="#29FFFFFF" StrokeThickness="6"/>
                 <Path x:Name="HoldArc" Stroke="{StaticResource AccentBrush}" StrokeThickness="6" StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round" Width="96" Height="96" Stretch="None"/>
             </Grid>
-            <Border Margin="0,20,0,0" Padding="24,10" CornerRadius="24" Background="#E614141B" HorizontalAlignment="Center">
+            <Border Margin="0,20,0,0" Padding="24,10" CornerRadius="24" Background="{StaticResource PanelSolidBrush}" HorizontalAlignment="Center">
                 <TextBlock Text="Hold to disconnect" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
             </Border>
         </StackPanel>
@@ -468,13 +473,11 @@
                         <TextBlock Text="Settings" FontSize="64" FontWeight="SemiBold" Margin="0,8,0,44" Foreground="{StaticResource TextBrush}"/>
                         <Button x:Name="CatReceiver" Style="{StaticResource CategoryButton}" Tag="0"><TextBlock Text="Receiver"/></Button>
                         <Button x:Name="CatPicture" Style="{StaticResource CategoryButton}" Tag="1"><TextBlock Text="Picture and Sound"/></Button>
-                        <Button x:Name="CatAdvanced" Style="{StaticResource CategoryButton}" Tag="2"><TextBlock Text="Advanced"/></Button>
-                        <Button x:Name="CatAbout" Style="{StaticResource CategoryButton}" Tag="3"><TextBlock Text="About"/></Button>
+                        <Button x:Name="CatAbout" Style="{StaticResource CategoryButton}" Tag="2"><TextBlock Text="About"/></Button>
                     </StackPanel>
                     <StackPanel VerticalAlignment="Bottom">
                         <TextBlock x:Name="HelpText" Style="{StaticResource HelpTextStyle}" Text=""/>
                         <StackPanel x:Name="RestartNote" Orientation="Horizontal" Margin="0,20,0,0" Visibility="Collapsed">
-                            <Ellipse Width="12" Height="12" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
                             <TextBlock Text="Applies on next connection" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
                         </StackPanel>
                     </StackPanel>
@@ -487,7 +490,12 @@
                             <Button x:Name="RowName" Style="{StaticResource RowButton}">
                                 <Grid>
                                     <TextBlock Text="Name" Style="{StaticResource RowLabel}"/>
-                                    <TextBlock x:Name="ValName" Style="{StaticResource RowValue}" HorizontalAlignment="Right" Margin="0" Text="Xbox"/>
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <TextBlock x:Name="ValName" Style="{StaticResource RowValue}" Text="Xbox"/>
+                                        <!-- Edit (pencil): A opens the on-screen keyboard -->
+                                        <Grid Style="{StaticResource AccessorySlot}"><FontIcon Glyph="&#xE70F;" Style="{StaticResource Chevron}"
+                                              FontSize="26" HorizontalAlignment="Right"/></Grid>
+                                    </StackPanel>
                                 </Grid>
                             </Button>
                             <TextBox x:Name="NameBox" Visibility="Collapsed" Height="96" FontSize="32" FontWeight="SemiBold" Padding="36,26,36,0"
@@ -497,9 +505,8 @@
                             <Grid>
                                 <TextBlock Text="Resolution" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
                                     <TextBlock x:Name="ValResolution" Style="{StaticResource RowValue}" Text="1080p"/>
-                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                    <Grid Style="{StaticResource AccessorySlot}"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}" Margin="0,0,10,0"/><FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/></StackPanel></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -507,9 +514,8 @@
                             <Grid>
                                 <TextBlock Text="Frame rate" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
                                     <TextBlock x:Name="ValFps" Style="{StaticResource RowValue}" Text="60 fps"/>
-                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                    <Grid Style="{StaticResource AccessorySlot}"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}" Margin="0,0,10,0"/><FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/></StackPanel></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -518,7 +524,7 @@
                                 <TextBlock Text="H.265 video" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock x:Name="ValH265" Style="{StaticResource RowValue}" Text="On"/>
-                                    <Border x:Name="SwH265" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobH265" Style="{StaticResource SwitchKnob}"/></Border>
+                                    <Grid Style="{StaticResource AccessorySlot}"><Border x:Name="SwH265" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobH265" Style="{StaticResource SwitchKnob}"/></Border></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -527,7 +533,7 @@
                                 <TextBlock Text="Require code to connect" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock x:Name="ValPin" Style="{StaticResource RowValue}" Text="Off"/>
-                                    <Border x:Name="SwPin" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobPin" Style="{StaticResource SwitchKnob}"/></Border>
+                                    <Grid Style="{StaticResource AccessorySlot}"><Border x:Name="SwPin" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobPin" Style="{StaticResource SwitchKnob}"/></Border></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -539,9 +545,8 @@
                             <Grid>
                                 <TextBlock Text="Default view" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
                                     <TextBlock x:Name="ValViewMode" Style="{StaticResource RowValue}" Text="Auto"/>
-                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                    <Grid Style="{StaticResource AccessorySlot}"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}" Margin="0,0,10,0"/><FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/></StackPanel></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -550,7 +555,7 @@
                                 <TextBlock Text="Remove black bars" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock x:Name="ValAutoCrop" Style="{StaticResource RowValue}" Text="On"/>
-                                    <Border x:Name="SwAutoCrop" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobAutoCrop" Style="{StaticResource SwitchKnob}"/></Border>
+                                    <Grid Style="{StaticResource AccessorySlot}"><Border x:Name="SwAutoCrop" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobAutoCrop" Style="{StaticResource SwitchKnob}"/></Border></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -559,7 +564,7 @@
                                 <TextBlock Text="Sound" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock x:Name="ValAudio" Style="{StaticResource RowValue}" Text="On"/>
-                                    <Border x:Name="SwAudio" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobAudio" Style="{StaticResource SwitchKnob}"/></Border>
+                                    <Grid Style="{StaticResource AccessorySlot}"><Border x:Name="SwAudio" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobAudio" Style="{StaticResource SwitchKnob}"/></Border></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -567,9 +572,8 @@
                             <Grid>
                                 <TextBlock Text="Audio delay" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
                                     <TextBlock x:Name="ValDelay" Style="{StaticResource RowValue}" Text="0 ms"/>
-                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                    <Grid Style="{StaticResource AccessorySlot}"><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}" Margin="0,0,10,0"/><FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/></StackPanel></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -578,21 +582,7 @@
                                 <TextBlock Text="Show stats" Style="{StaticResource RowLabel}"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock x:Name="ValStats" Style="{StaticResource RowValue}" Text="Off"/>
-                                    <Border x:Name="SwStats" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobStats" Style="{StaticResource SwitchKnob}"/></Border>
-                                </StackPanel>
-                            </Grid>
-                        </Button>
-                    </StackPanel>
-
-                    <!-- Advanced -->
-                    <StackPanel x:Name="PaneAdvanced" Visibility="Collapsed">
-                        <Button x:Name="RowMdns" Style="{StaticResource RowButton}">
-                            <Grid>
-                                <TextBlock Text="Discovery" Style="{StaticResource RowLabel}"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
-                                    <TextBlock x:Name="ValMdns" Style="{StaticResource RowValue}" Text="Built-in"/>
-                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                    <Grid Style="{StaticResource AccessorySlot}"><Border x:Name="SwStats" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobStats" Style="{StaticResource SwitchKnob}"/></Border></Grid>
                                 </StackPanel>
                             </Grid>
                         </Button>
@@ -608,16 +598,20 @@
                     </StackPanel>
                 </Grid>
 
-                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right">
-                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="B" Style="{StaticResource KeyCapText}"/></Border>
-                    <TextBlock Text="Back" Style="{StaticResource HintText}"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Height="64">
+                    <StackPanel x:Name="SettingsAHint" Orientation="Horizontal">
+                        <TextBlock Text="&#xF093;" Style="{StaticResource HintGlyph}"/>
+                        <TextBlock x:Name="SettingsAHintText" Text="Open" Style="{StaticResource HintText}"/>
+                    </StackPanel>
+                    <TextBlock Text="&#xF094;" Style="{StaticResource HintGlyph}"/>
+                    <TextBlock Text="Back" Style="{StaticResource HintLastText}"/>
                 </StackPanel>
             </Grid>
         </Grid>
 
         <!-- ============ PIN ============ -->
         <Grid x:Name="PinLayer" Visibility="Collapsed" Opacity="0">
-            <Rectangle Fill="#F207070B"/>
+            <Rectangle Fill="#FF07070B"/>
             <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,290,96,0">
                 <TextBlock Text="Enter this code on your iPhone" FontSize="56" FontWeight="SemiBold" HorizontalAlignment="Center"
                            Foreground="{StaticResource TextBrush}"/>
@@ -626,21 +620,20 @@
                            FontWeight="Medium" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="1100"
                            HorizontalAlignment="Center" Foreground="{StaticResource Text2Brush}"/>
             </StackPanel>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,96,54">
-                <Border Style="{StaticResource KeyCap}"><TextBlock Text="B" Style="{StaticResource KeyCapText}"/></Border>
-                <TextBlock Text="Cancel" Style="{StaticResource HintText}"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,96,54" Height="64">
+                <TextBlock Text="&#xF094;" Style="{StaticResource HintGlyph}"/>
+                <TextBlock Text="Cancel" Style="{StaticResource HintLastText}"/>
             </StackPanel>
         </Grid>
 
         <!-- ============ Toast ============ -->
         <Border x:Name="Toast" Visibility="Collapsed" Opacity="0" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,54,0,0"
-                Padding="30,24,40,24" CornerRadius="40" Background="#F01E1E28" BorderBrush="#14FFFFFF" BorderThickness="1"
+                Padding="40,24,40,24" CornerRadius="40" Background="#FF1E1E28" BorderBrush="#14FFFFFF" BorderThickness="1"
                 IsHitTestVisible="False">
             <Border.RenderTransform>
                 <TranslateTransform x:Name="ToastShift" Y="0"/>
             </Border.RenderTransform>
             <StackPanel Orientation="Horizontal">
-                <Ellipse x:Name="ToastDot" Width="14" Height="14" Fill="#73FFFFFF" VerticalAlignment="Center" Margin="0,0,22,0"/>
                 <TextBlock x:Name="ToastTitle" Text="" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center"
                            Foreground="{StaticResource TextBrush}"/>
                 <TextBlock x:Name="ToastDetail" Text="" FontSize="26" FontWeight="Medium" VerticalAlignment="Center" Margin="22,0,0,0"

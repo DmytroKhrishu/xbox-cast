@@ -83,7 +83,11 @@ struct MainPage : MainPageT<MainPage> {
     void HideOverlay();
     void OverlayKey(xcui::Key k);
     void MirrorKey(xcui::Key k);
+    void IdleKey(xcui::Key k);
     void FocusOverlay(int index);
+    void MoveOverlayFocus(int dir);
+    bool OverlayItemVisible(int index) const;
+    void UpdateReceiverStatus();
     void ActivateOverlayItem();
     void ShowToast(std::wstring const& title, std::wstring const& detail, int ms);
     void UpdateStatsVisibility();
@@ -167,6 +171,8 @@ struct MainPage : MainPageT<MainPage> {
     Windows::UI::Xaml::DispatcherTimer m_padTimer;
     Windows::UI::Xaml::DispatcherTimer m_statsTimer;
     Windows::UI::Xaml::DispatcherTimer m_hintTimer;
+    Windows::UI::Xaml::DispatcherTimer m_receiverTimer;   // polls receiver health while idle (start failures fire no event)
+    std::wstring m_receiverProblem;                       // "" = receiver ready
     Windows::UI::Xaml::DispatcherTimer m_settleTimer;    // stops idle animations once the video has faded in
     Windows::UI::Xaml::DispatcherTimer m_holdCmdTimer;   // releases a /cmd {"hold":...} key
     xcui::Key m_holdCmdKey = xcui::Key::None;
