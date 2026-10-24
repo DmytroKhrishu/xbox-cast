@@ -180,6 +180,9 @@ Linux: `cmake -S native -B build && cmake --build build` builds `castcore` + `ho
   - `GET /log?since=<seq>` → `{seq, lines:[...]}`.
   - `POST /cmd` JSON: `{"key":"A|B|X|Y|LB|RB|Up|Down|Left|Right|Menu|View"}`, `{"viewMode":"Fill"}`, `{"zoom":1.25}`,
     `{"setting":{"k":"v"}}`, `{"disconnect":true}` → `{ok:true}`. Lets agents drive the app without a controller.
+    Additive (ui): key names also include `LT`, `RT` (one zoom step), and `{"hold":"B","ms":1200}` holds any key name for
+    `ms` (50..5000) before releasing (hold-B disconnect). The server forwards every `/cmd` body verbatim through
+    `Diag::Command`; the UI parses it (`docs/controller-ux.md`).
 - `tools/devlog.py` (platform): tails `/log`, prints `/status`, sends `/cmd`. Console address from `XBOX_HOST` in `.env`.
 - Never bake any address into a build. The dev box reaches the console, not the other way round.
 
