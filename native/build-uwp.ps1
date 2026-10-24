@@ -38,6 +38,11 @@ function Invoke-Checked([string] $what, [scriptblock] $cmd) {
     if ($LASTEXITCODE) { throw "$what failed (exit code $LASTEXITCODE)" }
 }
 
+# vcpkg candidates, read BEFORE the VS developer shell: it sets VCPKG_ROOT to Visual Studio's bundled vcpkg, which
+# only works with a builtin-baseline in the manifest (we use a classic vcpkg checkout instead)
+$vcpkgCandidates = @($env:VCPKG_ROOT, $env:VCPKG_INSTALLATION_ROOT, (Join-Path $outRoot 'vcpkg')) |
+    Where-Object { $_ -and ($_ -notmatch 'Microsoft Visual Studio') }
+
 # ------------------------------------------------------------------ Visual Studio developer shell
 if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
@@ -47,13 +52,14 @@ if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
     Write-Host "Visual Studio: $vs"
     Import-Module (Join-Path $vs 'Common7\Tools\Microsoft.VisualStudio.DevShell.dll')
     $hostArch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'x64' }
-    Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=$Arch -host_arch=$hostArch -no_logo" | Out-Null
+    Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments "-arch=$Arch -host_arch=$hostArch -app_platform=UWP -no_logo" | Out-Null
 }
 Write-Host "cl.exe: $((Get-Command cl.exe).Source)"
+Write-Host "cmake: $((Get-Command cmake.exe).Source) ($((cmake --version | Select-Object -First 1)))"
 
 # ------------------------------------------------------------------ vcpkg
 $vcpkg = $null
-foreach ($cand in @($env:VCPKG_ROOT, $env:VCPKG_INSTALLATION_ROOT, (Join-Path $outRoot 'vcpkg'))) {
+foreach ($cand in $vcpkgCandidates) {
     if ($cand -and (Test-Path (Join-Path $cand 'scripts\buildsystems\vcpkg.cmake'))) { $vcpkg = $cand; break }
 }
 if (-not $vcpkg) {
@@ -82,8 +88,17 @@ $cmakeArgs = @(
     '-DCASTCORE_BUILD_HOSTRX=OFF',
     '-DCASTCORE_BUILD_TESTS=OFF'
 )
-if (Get-Command ninja -ErrorAction SilentlyContinue) {
-    $cmakeArgs += @('-G', 'Ninja', "-DCMAKE_BUILD_TYPE=$Config")
+$ninja = Get-Command ninja -ErrorAction SilentlyContinue
+if (-not $ninja -and $env:VSINSTALLDIR) {
+    # Visual Studio ships Ninja with its CMake component
+    $vsNinja = Join-Path $env:VSINSTALLDIR 'Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\ninja.exe'
+    if (Test-Path $vsNinja) { $ninja = Get-Item $vsNinja }
+}
+if ($ninja) {
+    $ninjaPath = if ($ninja -is [System.Management.Automation.CommandInfo]) { $ninja.Source } else { $ninja.FullName }
+    Write-Host "ninja: $ninjaPath"
+    $cmakeArgs += @('-G', 'Ninja', "-DCMAKE_MAKE_PROGRAM=$ninjaPath", "-DCMAKE_BUILD_TYPE=$Config",
+                    '-DCMAKE_C_COMPILER=cl.exe')
 } else {
     Write-Host "ninja not found: using the Visual Studio generator"
     $cmakeArgs += @('-A', $(if ($Arch -eq 'x64') { 'x64' } else { 'ARM64' }))
