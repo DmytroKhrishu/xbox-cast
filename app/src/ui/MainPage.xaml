@@ -453,7 +453,7 @@
 
         <!-- ============ Settings (in-page panel) ============ -->
         <Grid x:Name="SettingsLayer" Visibility="Collapsed" Opacity="0">
-            <Rectangle Fill="#C707070B"/>
+            <Rectangle Fill="#FF07070B"/>
             <Grid x:Name="SettingsBody" Margin="96,54,96,54">
                 <Grid.RenderTransform>
                     <TranslateTransform x:Name="SettingsShift" X="0"/>
