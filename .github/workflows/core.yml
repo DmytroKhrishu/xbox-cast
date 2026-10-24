@@ -1,0 +1,71 @@
+name: core
+
+# castcore (native/, owner: core): Linux build + unit tests, and the UWP static library the app links.
+on:
+  push:
+    branches: [main]
+    paths: ['native/**', '.github/workflows/core.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends cmake ninja-build pkg-config libssl-dev libplist-dev \
+            libavahi-client-dev libavcodec-dev libavformat-dev libavutil-dev
+
+      - name: AAC-ELD conformance sample (FFmpeg FATE suite)
+        id: eld
+        run: |
+          mkdir -p "$RUNNER_TEMP/fate"
+          f="$RUNNER_TEMP/fate/er_eld1001np_44_ep0.mp4"
+          if curl -fsSL --retry 3 --max-time 60 -o "$f" https://fate-suite.ffmpeg.org/aac/er_eld1001np_44_ep0.mp4; then
+            echo "sample=$f" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::FATE sample download failed: test_aac_eld only checks the decoder setup"
+          fi
+
+      - name: Build (castcore, hostrx, tests)
+        run: |
+          cmake -S native -B build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build build
+
+      - name: Unit tests
+        env:
+          XC_ELD_SAMPLE: ${{ steps.eld.outputs.sample }}
+        run: ctest --test-dir build --output-on-failure
+
+  uwp:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-bincache
+          key: vcpkg-x64-uwp-${{ hashFiles('native/vcpkg.json', 'native/build-uwp.ps1') }}
+          restore-keys: vcpkg-x64-uwp-
+
+      - name: Build castcore (x64-uwp)
+        shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}/vcpkg-bincache
+        run: pwsh native/build-uwp.ps1 -Arch x64 -Config Release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: castcore-uwp-x64
+          path: native/out/uwp-x64
+          retention-days: 3
+          if-no-files-found: error
