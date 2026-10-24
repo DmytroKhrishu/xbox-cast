@@ -124,9 +124,9 @@ void MainPage::InitializeComponent() {
     LoadSettings();
     RefreshAll();
 
-    PreviewKeyDown([this](IInspectable const&, KeyRoutedEventArgs const& e) { OnPreviewKeyDown(e); });
-    PreviewKeyUp([this](IInspectable const&, KeyRoutedEventArgs const& e) { OnPreviewKeyUp(e); });
-    Loaded([this](IInspectable const&, RoutedEventArgs const&) { OnLoaded(); });
+    PreviewKeyDown([this](IInspectable const&, KeyRoutedEventArgs const& e) { HandlePreviewKeyDown(e); });
+    PreviewKeyUp([this](IInspectable const&, KeyRoutedEventArgs const& e) { HandlePreviewKeyUp(e); });
+    Loaded([this](IInspectable const&, RoutedEventArgs const&) { HandleLoaded(); });
 
     // B is handled as a key; never let the system treat it as "back".
     Windows::UI::Core::SystemNavigationManager::GetForCurrentView().BackRequested(
@@ -235,7 +235,7 @@ void MainPage::WireBridge() {
     };
 }
 
-void MainPage::OnLoaded() {
+void MainPage::HandleLoaded() {
     auto& b = xcui::Bridge::Get();
     b.AttachVideo(VideoPanel());
     b.Start();
@@ -896,7 +896,7 @@ void MainPage::SetHoldProgress(double p) {
 
 // ============================================================================================ input
 
-void MainPage::OnPreviewKeyDown(KeyRoutedEventArgs const& e) {
+void MainPage::HandlePreviewKeyDown(KeyRoutedEventArgs const& e) {
     auto vk = e.Key();
     if (m_editingName) {
         using Windows::System::VirtualKey;
@@ -916,7 +916,7 @@ void MainPage::OnPreviewKeyDown(KeyRoutedEventArgs const& e) {
     PressKey(k, e.KeyStatus().WasKeyDown);
 }
 
-void MainPage::OnPreviewKeyUp(KeyRoutedEventArgs const& e) {
+void MainPage::HandlePreviewKeyUp(KeyRoutedEventArgs const& e) {
     if (m_editingName) return;
     Key k = xcui::KeyFromVirtualKey(e.Key());
     if (k == Key::None) return;

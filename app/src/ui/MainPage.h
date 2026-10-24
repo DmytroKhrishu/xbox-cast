@@ -56,15 +56,15 @@ struct MainPage : MainPageT<MainPage> {
     };
 
     // setup
-    void OnLoaded();
+    void HandleLoaded();
     void BuildRows();
     void BuildBackdrop();
     void WireBridge();
     template <typename F> void Ui(F&& f);
 
     // input
-    void OnPreviewKeyDown(Windows::UI::Xaml::Input::KeyRoutedEventArgs const& e);
-    void OnPreviewKeyUp(Windows::UI::Xaml::Input::KeyRoutedEventArgs const& e);
+    void HandlePreviewKeyDown(Windows::UI::Xaml::Input::KeyRoutedEventArgs const& e);
+    void HandlePreviewKeyUp(Windows::UI::Xaml::Input::KeyRoutedEventArgs const& e);
     void PressKey(xcui::Key k, bool repeat);
     void ReleaseKey(xcui::Key k);
     void BTap();
