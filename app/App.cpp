@@ -16,9 +16,14 @@ using namespace Windows::UI::ViewManagement;
 using namespace Windows::UI::Xaml;
 using namespace Windows::UI::Xaml::Controls;
 using namespace Windows::UI::Xaml::Navigation;
-using namespace XboxCast;
-using namespace XboxCast::implementation;
+// The app's own C++ namespace ::XboxCast (Diag, Settings, ReceiverHost) and the projection winrt::XboxCast share a name:
+// never `using namespace XboxCast;` next to `using namespace winrt;` (ambiguous). Qualify as ::XboxCast::X instead.
+using ::XboxCast::Diag;
+using ::XboxCast::ReceiverHost;
+using ::XboxCast::ReceiverState;
 
+namespace winrt::XboxCast::implementation
+{
 App::App()
 {
     XC_LOGI("app", "process start");
@@ -72,7 +77,7 @@ void App::OnLaunched(LaunchActivatedEventArgs const& e)
     {
         if (rootFrame.Content() == nullptr)
         {
-            rootFrame.Navigate(xaml_typename<XboxCast::MainPage>(), box_value(e.Arguments()));
+            rootFrame.Navigate(xaml_typename<winrt::XboxCast::MainPage>(), box_value(e.Arguments()));
         }
         Window::Current().Activate();
         StartServices();
@@ -158,4 +163,5 @@ void App::OnNavigationFailed(IInspectable const&, NavigationFailedEventArgs cons
 {
     XC_LOGE("app", "navigation to %ls failed", e.SourcePageType().Name.c_str());
     throw hresult_error(E_FAIL, hstring(L"Failed to load Page ") + e.SourcePageType().Name);
+}
 }
