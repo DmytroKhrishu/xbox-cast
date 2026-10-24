@@ -40,7 +40,10 @@ typedef struct {
     const char    *data_dir;        /* writable dir for the persistent ed25519 identity / pairing data */
     int            builtin_mdns;    /* 1 = castcore advertises itself with its own mDNS responder (UDP 5353, multicast,
                                        SO_REUSEADDR) and never calls mdns_publish. Fallback for platforms where the OS
-                                       DNS-SD API can't advertise (app picks it via setting `mdnsMode`). */
+                                       DNS-SD API can't advertise. DEFAULT on Xbox (setting `mdnsMode`).
+                                       Must include the Xbox fixes: accept adapters named "Durango Virtual
+                                       Network ... Adapter", host name `<host>-xc.local` (never the console's
+                                       own name), stop the thread before closing sockets (suspend crash). */
 } xc_config;
 
 typedef struct {
@@ -161,7 +164,7 @@ Linux: `cmake -S native -B build && cmake --build build` builds `castcore` + `ho
 | `audioOffsetMs` | int | 0 | -300..300, lip-sync trim |
 | `showStats` | bool | false | stats overlay |
 | `devServer` | bool | true in dev builds, false in Store builds | diagnostics HTTP server |
-| `mdnsMode` | string | `"auto"` | `os` (DnssdServiceInstance) \| `builtin` (castcore responder) \| `auto` (os, fall back to builtin if registration fails) |
+| `mdnsMode` | string | `"builtin"` | `builtin` (castcore responder, DEFAULT: the only path proven on Xbox, see docs/research/xbox-platform.md) \| `os` (DnssdServiceInstance, experimental) |
 
 ### Window / XAML rules (platform sets them in App, everyone relies on them)
 - `ApplicationView::SetDesiredBoundsMode(UseCoreWindow)`: draw edge to edge (no Xbox overscan margins) so video is full-bleed.
