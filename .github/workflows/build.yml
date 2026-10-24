@@ -12,9 +12,8 @@ on:
         type: boolean
         default: false
 
-concurrency:
-  group: build-${{ github.ref }}
-  cancel-in-progress: false
+# No concurrency group: several agents push to main and each looks for the run of its own head SHA, so every push
+# gets its own run (a group would cancel queued runs).
 
 jobs:
   build:
