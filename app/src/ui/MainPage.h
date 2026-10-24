@@ -2,20 +2,24 @@
 // XboxCast.MainPage: idle screen, connecting, mirroring (video + overlay), settings panel, PIN, stats, toasts.
 // Spec: docs/design/png/*.png, docs/controller-ux.md, docs/ui.md.
 
-#include "MainPage.g.h"
-
-#include <chrono>
-#include <string>
-#include <vector>
+// Projections used by named elements in MainPage.xaml must come before the generated header.
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.Display.h>
 #include <winrt/Windows.UI.Composition.h>
 #include <winrt/Windows.UI.Core.h>
 #include <winrt/Windows.UI.Xaml.Controls.h>
+#include <winrt/Windows.UI.Xaml.Controls.Primitives.h>
+#include <winrt/Windows.UI.Xaml.Documents.h>
 #include <winrt/Windows.UI.Xaml.Input.h>
 #include <winrt/Windows.UI.Xaml.Media.h>
 #include <winrt/Windows.UI.Xaml.Media.Animation.h>
 #include <winrt/Windows.UI.Xaml.Shapes.h>
+
+#include "MainPage.g.h"
+
+#include <chrono>
+#include <string>
+#include <vector>
 
 #include "Bridge.h"
 #include "Input.h"
