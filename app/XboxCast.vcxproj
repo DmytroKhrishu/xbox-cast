@@ -83,7 +83,7 @@
     <XcCastcoreDir>$(MSBuildThisFileDirectory)..\native\out\uwp-x64\</XcCastcoreDir>
     <XcHaveCastcore Condition="Exists('$(XcCastcoreDir)lib\link.txt')">true</XcHaveCastcore>
     <XcHaveCastcore Condition="'$(XcHaveCastcore)' != 'true'">false</XcHaveCastcore>
-    <XcCastcoreLibs Condition="'$(XcHaveCastcore)' == 'true'">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(XcCastcoreDir)lib\link.txt')), '\s+', ';'))</XcCastcoreLibs>
+    <XcCastcoreLibs Condition="'$(XcHaveCastcore)' == 'true'">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(XcCastcoreDir)lib\link.txt').Trim()), '\s+', ';'))</XcCastcoreLibs>
   </PropertyGroup>
 
   <ItemDefinitionGroup>
