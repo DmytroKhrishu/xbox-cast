@@ -142,6 +142,8 @@ std::string ToJson(const MediaStats& m)
     a.Int("outputRate", m.outputRate);
     a.Num("bufferMs", m.audioBufferMs);
     a.Num("targetMs", m.audioTargetMs);
+    a.Num("jitterMs", m.audioJitterMs);
+    a.Int("slewPpm", m.audioSlewPpm);
     a.Num("arrivalLagMs", m.audioArrivalLagMs);
     a.Num("syncErrorMs", m.audioSyncErrorMs);
     a.Int("offsetMs", m.audioOffsetMs);

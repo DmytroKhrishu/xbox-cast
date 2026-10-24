@@ -48,6 +48,8 @@ struct MediaStats {
     int         audioRate = 0, audioChannels = 0, outputRate = 0;
     double      audioBufferMs = 0;    // queued in XAudio2 + pending
     double      audioTargetMs = 0;    // target delay pts -> heard
+    double      audioJitterMs = 0;    // adaptive jitter part of the target (70 start, 50..120)
+    int         audioSlewPpm = 0;     // resample trim in force (clock drift / small sync errors)
     double      audioArrivalLagMs = 0;
     double      audioSyncErrorMs = 0; // last measured error
     int         audioOffsetMs = 0;

@@ -244,22 +244,25 @@ void AudioOutput::SubmitChunk(const float* pcm, int frames, int64_t ptsNs)
     m_sched.SetVideoLatencyNs(m_videoLatency ? m_videoLatency() : 0);
     const int64_t queued = QueuedFrames();
     const bool starved = queued == 0;
-    if (starved && m_playing) {
-        std::lock_guard<std::mutex> lk(m_statsMu);
-        m_stats.underruns++;
-        if (m_stats.underruns <= 5 || (m_stats.underruns % 50) == 0)
-            MLOGW("audio", "underrun #%llu (output ran dry): re-buffering to %.0f ms",
-                  (unsigned long long)m_stats.underruns, NsToMs(m_sched.TargetDelayNs()));
-        m_playing = false;
-    }
     const int64_t now = NowNs();
     const int64_t cursor = now + queued * 1000000000LL / m_deviceRate;
     AudioPlan p = m_sched.Plan(ptsNs, frames, cursor, starved);
-    if (p.resync) {
+    m_dec.SetCompensationPpm(p.slewPpm); // applies from the next decoded packet on
+    {
         std::lock_guard<std::mutex> lk(m_statsMu);
-        if (!starved) m_stats.resyncs++;
+        // a dry voice after a sender pause / stream start is not an underrun (the scheduler tells them apart)
+        if (p.underrun) {
+            m_stats.underruns++;
+            if (m_stats.underruns <= 5 || (m_stats.underruns % 50) == 0)
+                MLOGW("audio", "underrun #%llu (output ran dry): jitter target now %.0f ms, resuming after a %.0f ms refill",
+                      (unsigned long long)m_stats.underruns, NsToMs(m_sched.JitterTargetNs()),
+                      p.silenceFrames * 1000.0 / m_deviceRate);
+        }
+        if (p.resync) m_stats.resyncs++;
         m_stats.syncErrorMs = NsToMs(m_sched.LastErrorNs());
+        m_stats.slewPpm = p.slewPpm;
     }
+    if (starved) m_playing = false;
     if (p.drop) {
         std::lock_guard<std::mutex> lk(m_statsMu);
         m_stats.dropped++;
@@ -302,6 +305,7 @@ void AudioOutput::Handle(Item& it)
         m_haveFormat = true;
         FlushVoice(true);
         m_sched.Reset();
+        m_sched.ResetJitter(); // new stream: start from the default jitter target again
         OpenDecoder();
         return;
     }
@@ -350,6 +354,7 @@ void AudioOutput::ThreadMain()
             std::lock_guard<std::mutex> lk(m_statsMu);
             m_stats.bufferMs = m_voice ? (double)QueuedFrames() * 1000.0 / m_deviceRate : 0;
             m_stats.targetMs = NsToMs(m_sched.TargetDelayNs());
+            m_stats.jitterMs = NsToMs(m_sched.JitterTargetNs());
             m_stats.arrivalLagMs = NsToMs(m_sched.ArrivalLagNs());
             m_stats.active = m_playing;
         }
@@ -357,12 +362,14 @@ void AudioOutput::ThreadMain()
             m_lastLogNs = now;
             AudioOutStats s = Stats();
             MLOGI("audio",
-                  "%s %d Hz %d ch -> %d Hz: buffer %.1f ms, target %.1f ms (arrival lag %.1f, video %.1f, offset %d), "
-                  "packets %llu, underruns %llu, resyncs %llu, dropped %llu, errors %llu, %s",
-                  s.codec.c_str(), s.rate, s.channels, s.outputRate, s.bufferMs, s.targetMs, s.arrivalLagMs,
-                  NsToMs(m_sched.VideoLatencyNs()), m_offsetMs.load(), (unsigned long long)s.packets,
-                  (unsigned long long)s.underruns, (unsigned long long)s.resyncs, (unsigned long long)s.dropped,
-                  (unsigned long long)s.decodeErrors, m_enabled.load() ? "enabled" : "DISABLED");
+                  "%s %d Hz %d ch -> %d Hz: buffer %.1f ms, target %.1f ms (jitter %.0f, arrival lag %.1f, video %.1f, "
+                  "offset %d), slew %d ppm, sync error %.1f ms, packets %llu, underruns %llu, hard resyncs %llu, "
+                  "dropped %llu, errors %llu, %s",
+                  s.codec.c_str(), s.rate, s.channels, s.outputRate, s.bufferMs, s.targetMs, s.jitterMs, s.arrivalLagMs,
+                  NsToMs(m_sched.VideoLatencyNs()), m_offsetMs.load(), s.slewPpm, s.syncErrorMs,
+                  (unsigned long long)s.packets, (unsigned long long)s.underruns, (unsigned long long)s.resyncs,
+                  (unsigned long long)s.dropped, (unsigned long long)s.decodeErrors,
+                  m_enabled.load() ? "enabled" : "DISABLED");
         }
     }
     m_dec.Close();

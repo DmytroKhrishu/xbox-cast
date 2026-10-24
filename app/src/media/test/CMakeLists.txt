@@ -25,6 +25,7 @@ add_executable(media_tests
     test_math.cc
     test_crop.cc
     test_decode.cc
+    test_audio_sim.cc
     ${PORTABLE_SRC})
 # pch.h here is an empty stand-in for the app's precompiled header
 target_include_directories(media_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${PORTABLE})

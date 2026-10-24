@@ -290,6 +290,8 @@ MediaStats MediaPipeline::Stats() const
     s.outputRate = a.outputRate;
     s.audioBufferMs = a.bufferMs;
     s.audioTargetMs = a.targetMs;
+    s.audioJitterMs = a.jitterMs;
+    s.audioSlewPpm = a.slewPpm;
     s.audioArrivalLagMs = a.arrivalLagMs;
     s.audioSyncErrorMs = a.syncErrorMs;
     s.audioOffsetMs = m_audio->OffsetMs();

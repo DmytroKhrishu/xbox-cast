@@ -46,6 +46,13 @@ void AudioScheduler::Reset()
     m_arrival.Clear();
     m_videoLatencyNs = 0;
     m_lastErrNs = 0;
+    m_anchored = false;
+    m_correcting = false;
+    m_nextPts = 0;
+    m_errEmaNs = 0;
+    m_beyondFrames = 0;
+    m_cleanFrames = 0;
+    m_slewPpm = 0;
 }
 
 void AudioScheduler::SetVideoLatencyNs(int64_t ns)
@@ -60,36 +67,89 @@ void AudioScheduler::NoteArrival(int64_t ptsNs, int64_t arrivalNs) { m_arrival.P
 int64_t AudioScheduler::TargetDelayNs() const
 {
     const int64_t lag = m_arrival.Empty() ? 0 : m_arrival.Max();
-    int64_t d = lag + (int64_t)m_cfg.jitterTargetMs * 1000000;
+    int64_t d = lag + m_jitterNs;
     if (m_videoLatencyNs > 0) d = (std::max)(d, m_videoLatencyNs);
     d += m_offsetNs;
     const int64_t minD = lag + (int64_t)m_cfg.minBufferMs * 1000000;
     return (std::max)(d, minD);
 }
 
+// Silence for an early chunk, skip/drop for a late one.
+void AudioScheduler::HardCorrect(AudioPlan& p, int64_t err, int frames, int64_t maxSilenceNs) const
+{
+    p.fadeIn = true;
+    if (err > 0) {
+        p.silenceFrames = (int)NsToFrames((std::min)(err, maxSilenceNs));
+    } else if (err < 0) {
+        const int64_t skip = NsToFrames(-err);
+        p.drop = skip >= frames;
+        p.skipFrames = p.drop ? frames : (int)skip;
+    }
+}
+
 AudioPlan AudioScheduler::Plan(int64_t ptsNs, int frames, int64_t writeCursorNs, bool starved)
 {
     AudioPlan p;
-    const int64_t desired = ptsNs + TargetDelayNs();
-    const int64_t err = desired - writeCursorNs; // > 0: chunk is early (gap needed), < 0: chunk is late
-    m_lastErrNs = err;
-    const int64_t tol = (int64_t)m_cfg.toleranceMs * 1000000;
-    if (!starved && err >= -tol && err <= tol) return p;
+    const int64_t ms = 1000000;
+    // A pts jump (sender paused audio, new stream) is a restart, not an underrun.
+    const bool restart = !m_anchored || std::llabs(ptsNs - m_nextPts) > m_cfg.pauseMs * ms;
+    m_nextPts = ptsNs + FramesToNs(frames);
 
-    p.resync = true;
-    p.fadeIn = true;
-    if (err > 0) {
-        const int64_t maxSil = (int64_t)m_cfg.maxSilenceMs * 1000000;
-        p.silenceFrames = (int)NsToFrames((std::min)(err, maxSil));
-    } else if (err < 0) {
-        int64_t skip = NsToFrames(-err);
-        if (skip >= frames) {
-            p.drop = true;
-            p.skipFrames = frames;
-        } else {
-            p.skipFrames = (int)skip;
+    if (starved) {
+        if (!restart) {
+            // Ran dry mid-stream: the network needs more cushion. Resume after a short refill, not the full target
+            // (the stall's backlog arrives right behind this chunk), and never skip here: the slew pulls sync back.
+            p.underrun = true;
+            m_jitterNs = (std::min)(m_jitterNs + m_cfg.jitterGrowMs * ms, m_cfg.jitterMaxMs * ms);
+        }
+        m_anchored = true;
+        m_correcting = false;
+        m_errEmaNs = 0;
+        m_beyondFrames = 0;
+        m_cleanFrames = 0;
+        m_slewPpm = 0;
+        const int64_t err = ptsNs + TargetDelayNs() - writeCursorNs;
+        m_lastErrNs = err;
+        int64_t maxSil = m_cfg.maxSilenceMs * ms;
+        if (p.underrun) maxSil = (std::min)(maxSil, TargetDelayNs() * m_cfg.underrunRefillPct / 100);
+        if (p.underrun && err < 0) p.fadeIn = true;
+        else HardCorrect(p, err, frames, maxSil);
+        return p;
+    }
+
+    m_cleanFrames += frames;
+    if (m_cleanFrames >= NsToFrames(m_cfg.jitterShrinkEveryMs * ms)) {
+        m_cleanFrames = 0;
+        m_jitterNs = (std::max)(m_jitterNs - m_cfg.jitterShrinkMs * ms, m_cfg.jitterMinMs * ms);
+    }
+
+    const int64_t err = ptsNs + TargetDelayNs() - writeCursorNs; // > 0: chunk is early, < 0: chunk is late
+    m_lastErrNs = err;
+
+    // Hard correction only for a large error that persists: a burst after a stall is large but transient.
+    if (!m_correcting) {
+        m_beyondFrames = std::llabs(err) > m_cfg.hardResyncMs * ms ? m_beyondFrames + frames : 0;
+        if (m_beyondFrames >= NsToFrames(m_cfg.hardHoldMs * ms)) {
+            m_correcting = true;
+            p.resync = true;
         }
     }
+    if (m_correcting) {
+        m_beyondFrames = 0;
+        m_errEmaNs = 0;
+        m_slewPpm = 0;
+        HardCorrect(p, err, frames, m_cfg.maxSilenceMs * ms);
+        if (!p.drop) m_correcting = false; // this chunk lands on the target
+        return p;
+    }
+
+    // Everything else: slew. Smoothed error -> resample-ratio trim (also absorbs sender/Xbox clock drift).
+    const double alpha = (std::min)(1.0, (double)frames / (double)NsToFrames(m_cfg.slewWindowMs * ms));
+    m_errEmaNs += alpha * ((double)err - m_errEmaNs);
+    const double e = m_errEmaNs / 1.0e6, dead = m_cfg.slewDeadbandMs;
+    double ppm = std::fabs(e) <= dead ? 0.0 : (e > 0 ? e - dead : e + dead) * m_cfg.slewPpmPerMs;
+    ppm = (std::max)(-(double)m_cfg.maxSlewPpm, (std::min)((double)m_cfg.maxSlewPpm, ppm));
+    m_slewPpm = p.slewPpm = (int)std::lround(ppm);
     return p;
 }
 

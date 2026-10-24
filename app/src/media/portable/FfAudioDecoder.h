@@ -34,7 +34,8 @@ public:
     int Decode(const uint8_t* data, size_t size, int64_t ptsNs,
                const std::function<void(const float* pcm, int frames, int64_t ptsNs)>& onPcm);
     void Flush();
-
+    // Soft resampling compensation: stretch (> 0) or squeeze (< 0) the output by ppm. Kept until changed.
+    void SetCompensationPpm(int ppm);
     int OutRate() const { return m_outRate; }
     int OutChannels() const { return m_outCh; }
     int InRate() const { return m_inRate; }
@@ -63,6 +64,7 @@ private:
     int m_inRate = 0, m_inCh = 0, m_outRate = 48000, m_outCh = 2;
     std::vector<float> m_out;
     uint64_t m_errors = 0;
+    int m_compPpm = 0;
 };
 
 }} // namespace XboxCast::Media

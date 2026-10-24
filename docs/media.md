@@ -132,11 +132,22 @@ over its footprint, close to a box filter), copies it into a staging texture, an
   gives none), ALAC (magic cookie), AAC-LC, PCM (s16le, contract section 1). FFmpeg decode -> swresample to float stereo at the mastering
   voice rate (usually 48 kHz) -> one XAudio2 source voice (`AudioCategory_Media`).
 - Timing (`portable/AudioScheduler`): a sample with pts P plays at P + D, where
-  D = max(arrival lag + 50 ms jitter target, current video latency) + `audioOffsetMs`. Arrival lag is a slowly
+  D = max(arrival lag + jitter target, current video latency) + `audioOffsetMs`. Arrival lag is a slowly
   decaying maximum of (arrival - pts). The write cursor is now + (submitted - played) / rate. Each decoded chunk is
-  compared with the cursor: early -> silence inserted, late -> the start skipped (or the chunk dropped), within
-  +-20 ms nothing changes. Every correction and every restart after an underrun fades in over 5 ms (no clicks).
-- Underrun: the voice running dry is counted (`underruns`) and the next chunk re-anchors the timeline with a fade in.
+  compared with the cursor:
+  - small errors are slewed: a 1 s smoothed error (2 ms dead band, 250 ppm per ms) drives
+    `swr_set_compensation`, at most +-2000 ppm (0.2 %, inaudible). This also absorbs sender/Xbox clock drift;
+  - a hard correction (silence inserted for an early chunk, start skipped / chunk dropped for a late one, 5 ms fade
+    in) only when |error| > 40 ms persists for 300 ms of audio. Before (fixed 50 ms target, any |error| > 20 ms
+    corrected at once) Wi-Fi bursts caused a resync storm: 242 hard corrections in the first 45 s on console.
+- Jitter target is adaptive: 70 ms at stream start, +20 ms per underrun (cap 120 ms), -5 ms per 10 s of audio
+  without one (floor 50 ms). It survives a flush, resets on a new stream / format.
+- Underrun: the voice ran dry mid-stream (a pts gap > 1 s is a sender pause / new stream, not counted). Counted
+  (`underruns`), the target grows, and the next chunk resumes after a refill of half the target with a fade in (a
+  late chunk is never skipped here: the stall's backlog follows right behind and the slew pulls sync back).
+- Lip sync: video is presented on arrival + decode (never delayed for audio), audio trails it by about
+  jitter target + arrival lag - video latency. Replay of the console session: mean 70 ms (was 57), p99 107 ms.
+  Kept on purpose: delaying video would cost the latency the owner rates highest; `audioOffsetMs` trims it.
 - Volume: `OnVolume(db)`: -144 = mute, -30..0 dB -> linear gain on the source voice. `SetAudioEnabled(false)` fades
   out and stops submitting (packets are still parsed). Flush / format change fade the queued tail and recreate the
   voice. Engine loss (`OnCriticalError`, e.g. HDMI/headset change) rebuilds the engine at the new device rate.
@@ -151,28 +162,33 @@ over its footprint, close to a box filter), copies it into a staging texture, an
 | mailbox -> draw | 0-16.7 ms | waits for a free swap chain buffer (max latency 1) |
 | present -> scan-out | 1 refresh + compositor | DWM composes at vblank; not visible to the app |
 | **app-visible total** | | `latencyMs` = time Present() returns - frame pts (xc_now_ns clock, castcore maps the sender clock to it) |
-| audio | matches video | `audio.targetMs` follows max(jitter target, video latency); `syncErrorMs` |
+| audio | trails video by ~jitter target | `audio.targetMs` = max(arrival lag + `jitterMs`, video latency); `syncErrorMs`, `slewPpm` |
 
 Off-device numbers (Linux harness, software decode, 1 thread, 1920x886 60 fps iPhone-like stream):
 decode in -> out 2.6 ms avg / 6.0 ms max, 0 packets held with the SPS rewrite; a strict decoder WITHOUT the
 rewrite holds 5 packets (84 ms at 60 fps, the effect screen-mirror-xbox measured), with it 0. FFmpeg's own h264
 decoder is already 1-in-1-out on this stream (it infers `has_b_frames` from the stream): the rewrite is
 insurance against strict decoder paths. Audio scheduler on a simulated jittery 44.1 kHz ELD stream: target delay
-84 ms (34 ms arrival lag + 50 ms), max sync error 2 ms, 0 underruns after warm-up. Compared with airplay-xbox
-(200-300 ms, deliberate 200 ms buffer), the only fixed buffering here is the 50 ms audio jitter target; video has
-none beyond one swap chain buffer.
+84 ms (34 ms arrival lag + 50 ms), max sync error 2 ms, 0 underruns after warm-up. Replay of the first console
+session's audio (`audio_scheduler_console_replay`: arrival-time pts, Wi-Fi stalls of 20-120 ms every ~1.5 s for 45 s
+then 20-70 ms every ~6 s, +-100 ppm drift, 20 s sender pause, video latency 2.7/10.3 ms), old vs new scheduler:
+underruns 19 -> 4 (after 45 s: 3 -> 1), hard corrections 236 -> 4 (after 45 s: 79 -> 1), dropped chunks 208 -> 20.
+Compared with airplay-xbox (200-300 ms, deliberate 200 ms buffer), the only buffering here is the 50-120 ms
+adaptive audio jitter target; video has none beyond one swap chain buffer.
 
 ## On-console verification (read `GET /status` -> `media`)
 Top level (also shown by the UI stats panel): `latencyMs`, `latencyMsMax`, `decodeFps`, `renderFps`, `decodeMs`,
 `decodeMsMax`, `decodeInOutMs`, `dropped`, `codec` (e.g. `"h264 d3d11va"`), `size`, `cropRect`, `mode`,
 `audioBufferMs`, `underruns`. Detail: `media.video.{decoder, pixelFormat, colorMatrix, codedSize, viewSize,
 inputFps, decodeHeldMax, spsRewritten, presentMsAvg, decodeQueue, renderQueue, droppedQueue, droppedRender,
-decodeErrors, crop}` and `media.audio.{codec, rate, channels, outputRate, bufferMs, targetMs, arrivalLagMs,
-syncErrorMs, offsetMs, volumeDb, underruns, resyncs, dropped}`.
+decodeErrors, crop}` and `media.audio.{codec, rate, channels, outputRate, bufferMs, targetMs, jitterMs, slewPpm,
+arrivalLagMs, syncErrorMs, offsetMs, volumeDb, underruns, resyncs, dropped}` (`resyncs` = hard corrections,
+`jitterMs` = adaptive jitter target, `slewPpm` = resample trim in force).
 Checks: `codec` ends in `d3d11va`; `decodeHeldMax` 0; `decodeInOutMs` < 8; `renderFps` ~= `inputFps`; `dropped`
 not growing; `latencyMs` steady (expect ~20-40 ms app-visible); rotate the phone: `size` flips, no garbage frames;
 play a 16:9 video in portrait: `cropRect` shrinks to the video within ~3 s and `mode` reads `Auto (Fill)`;
-`underruns` stays 0; HEVC stream (if the sender picks it): `pixelFormat` p010 for 10-bit.
+`underruns` stays 0 or grows only in the first seconds (each one raises `jitterMs` by 20), `resyncs` stays at a
+handful per session, `slewPpm` mostly within +-300 once settled; HEVC stream (if the sender picks it): `pixelFormat` p010 for 10-bit.
 Logs: tags `video`, `render`, `audio` (setup, every format change, 10 s summaries, every fallback).
 
 ## Requests to platform
@@ -201,4 +217,5 @@ Approaches and some code follow these GPL-3.0 projects (attribution in the file 
   into the SDR swap chain.
 - AAC-ELD is verified with a conformance stream and our synthesised ASC; a real iPhone ELD stream is verified by the
   core harness / on console.
-- Audio clock drift (sender vs Xbox crystal) is corrected only by the +-20 ms resync; no fine-grained resampling.
+- Audio pts is the arrival time (UxPlay's remote-clock mapping is not live yet), so Wi-Fi bursts reach the scheduler
+  as timing error; the hold + slew hide that, real sender timestamps would remove it.

@@ -37,9 +37,10 @@ struct AudioOutStats {
     bool active = false;
     std::string codec;
     int rate = 0, channels = 0, outputRate = 0;
-    double bufferMs = 0, targetMs = 0, arrivalLagMs = 0, syncErrorMs = 0;
+    double bufferMs = 0, targetMs = 0, jitterMs = 0, arrivalLagMs = 0, syncErrorMs = 0;
+    int slewPpm = 0;
     float volumeDb = 0;
-    uint64_t packets = 0, decodeErrors = 0, underruns = 0, resyncs = 0, dropped = 0;
+    uint64_t packets = 0, decodeErrors = 0, underruns = 0, resyncs = 0 /* hard corrections */, dropped = 0;
 };
 
 class AudioOutput : public IXAudio2EngineCallback {

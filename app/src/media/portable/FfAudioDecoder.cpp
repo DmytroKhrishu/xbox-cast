@@ -188,6 +188,8 @@ bool FfAudioDecoder::EnsureSwr(AVSampleFormat fmt, int rate, const AVChannelLayo
     av_channel_layout_default(&outLayout, m_outCh);
     int err = swr_alloc_set_opts2(&m_swr, &outLayout, AV_SAMPLE_FMT_FLT, m_outRate, layout, fmt, rate, 0, nullptr);
     av_channel_layout_uninit(&outLayout);
+    // always run the resampler, so swr_set_compensation (clock-drift slew) works at equal rates too
+    if (err >= 0) err = av_opt_set_int(m_swr, "flags", SWR_FLAG_RESAMPLE, 0);
     if (err >= 0) err = swr_init(m_swr);
     if (err < 0) {
         MLOGE("audio", "swresample init failed: %s", AvErr(err).c_str());
@@ -196,6 +198,7 @@ bool FfAudioDecoder::EnsureSwr(AVSampleFormat fmt, int rate, const AVChannelLayo
     }
     m_swrFmt = fmt;
     m_swrRate = rate;
+    m_compPpm = 0;
     av_channel_layout_uninit(&m_swrLayout);
     av_channel_layout_copy(&m_swrLayout, layout);
     MLOGI("audio", "resampler: %s %d Hz %d ch -> flt %d Hz %d ch%s", av_get_sample_fmt_name(fmt), rate,
@@ -266,6 +269,22 @@ void FfAudioDecoder::Flush()
         swr_close(m_swr);
         swr_init(m_swr);
     }
+    m_compPpm = 0;
+}
+
+void FfAudioDecoder::SetCompensationPpm(int ppm)
+{
+    if (!m_swr || (ppm == 0 && m_compPpm == 0)) return;
+    // spread the delta over 10 s of output (0.1 ppm resolution). Compensation ends after that distance, so a
+    // non-zero value is re-armed on every call (cheap: two fields in the resampler; the scheduler calls per chunk).
+    const int distance = m_outRate * 10;
+    const int delta = (int)((int64_t)ppm * distance / 1000000);
+    int err = swr_set_compensation(m_swr, delta, distance);
+    if (err < 0) {
+        if ((m_errors++ % 100) == 0) MLOGW("audio", "swr_set_compensation(%d ppm): %s", ppm, AvErr(err).c_str());
+        return;
+    }
+    m_compPpm = ppm;
 }
 
 }} // namespace XboxCast::Media
