@@ -249,11 +249,7 @@ void Bridge::Pan(float dx, float dy) {
     if (g_pipeline) g_pipeline->Pan(dx, dy);
 }
 void Bridge::ResetPan() {
-    // Pan is clamped to the content: a large move to one corner, then half the view back, centres it.
-    if (g_pipeline) {
-        g_pipeline->Pan(-10.f, -10.f);
-        g_pipeline->Pan(0.5f, 0.5f);
-    }
+    if (g_pipeline) g_pipeline->ResetPan();
 }
 void Bridge::SetAutoCrop(bool on) {
     if (g_pipeline) g_pipeline->SetAutoCrop(on);

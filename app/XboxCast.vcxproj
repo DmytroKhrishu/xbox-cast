@@ -161,11 +161,11 @@
 
   <!-- Everything under src\ by wildcard -->
   <ItemGroup>
-    <Page Include="src\**\*.xaml">
+    <Page Include="src\**\*.xaml" Exclude="src\media\test\**">
       <SubType>Designer</SubType>
     </Page>
-    <ClInclude Include="src\**\*.h" />
-    <ClCompile Include="src\**\*.cpp" />
+    <ClInclude Include="src\**\*.h" Exclude="src\media\test\**" />
+    <ClCompile Include="src\**\*.cpp" Exclude="src\media\test\**" />
     <Midl Include="src\**\*.idl" />
     <None Include="src\**\*.hlsli" />
     <FxCompile Include="src\**\*_vs.hlsl">
