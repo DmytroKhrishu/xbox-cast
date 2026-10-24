@@ -8,6 +8,7 @@
   --fill: rgba(255, 255, 255, 0.08);       /* resting control */
   --fill-2: rgba(255, 255, 255, 0.05);     /* resting row */
   --panel: rgba(20, 20, 27, 0.94);         /* overlay / cards */
+  --panel-solid: #14141b;                  /* anything drawn over live video: opaque, never see-through */
   --accent: #8ea8ff;                       /* the one quiet accent */
   --accent-fill: rgba(142, 168, 255, 0.22);
   --accent-text: #c8d3ff;
@@ -53,11 +54,12 @@ html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--
 .kv .caption { margin-bottom: 6px; }
 .kv .v { font-size: 28px; font-weight: 600; color: var(--text-2); }
 
-/* Controller hint: keycap with a text name (no glyph icons) */
-.hint { display: inline-flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 600; color: var(--text-2); }
-.key { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; height: 40px; padding: 0 14px;
-  border-radius: 20px; background: rgba(255, 255, 255, 0.12); color: var(--text); font-size: 20px; font-weight: 700; }
-.hints { display: flex; gap: 40px; }
+/* Controller hint: controller glyph(s) (Segoe Fluent Icons in the app, glyphs.js here) + a text label, always both.
+   Glyph 40 px in --text, label 28 px in --text-2; 4 px between paired glyphs, 12 px glyph-to-label, 44 px between hints. */
+.hint { display: inline-flex; align-items: center; gap: 12px; font-size: 28px; font-weight: 600; color: var(--text-2); white-space: nowrap; }
+.hint .gs { display: inline-flex; gap: 4px; color: var(--text); font-size: 30px; }   /* i.g is 1.35em = 40 px */
+.hint .pre { margin-right: -4px; }   /* "Hold" before the B glyph */
+.hints { display: flex; gap: 44px; align-items: center; }
 
 /* ---- Controls ---- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; height: 72px; padding: 0 34px;

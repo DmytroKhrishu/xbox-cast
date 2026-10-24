@@ -1,54 +1,50 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>Mirroring overlay</title><link rel="stylesheet" href="style.css">
 <style>
-  .scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 520px;
-    background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 60%, rgba(0,0,0,.7) 100%); }
+  /* Opaque panel (#14141B), no full-width scrim: nothing see-through over the video. One row of controls,
+     one hint row. Disconnect lives only in the hint (hold B), Stats only on the View button: no duplicates. The zoom
+     stepper exists only while the mode is Zoom and sits right after the pills with no label of its own (overlay-zoom.html),
+     so "Zoom" is never both a mode and a caption. */
   .overlay { position: absolute; left: var(--safe-x); right: var(--safe-x); bottom: var(--safe-y);
-    padding: 34px 40px 36px; border-radius: 36px; background: var(--panel);
-    box-shadow: 0 30px 80px rgba(0,0,0,.5); backdrop-filter: blur(30px); }
-  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-  .who { display: flex; align-items: baseline; gap: 20px; }
-  .who .name { font-size: 40px; font-weight: 600; }
-  .row { display: flex; align-items: flex-end; gap: 36px; }
-  .group .caption { margin: 0 0 12px 4px; }
+    padding: 30px 40px 30px; border-radius: 32px; background: var(--panel-solid);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.06), 0 24px 70px rgba(0,0,0,.6); }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; height: 48px; }
+  .who { display: flex; align-items: baseline; gap: 18px; }
+  .who .name { font-size: 36px; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 40px; }
+  .label { font-size: 26px; font-weight: 600; color: var(--text-2); margin-right: 18px; }
   .stepper { display: flex; align-items: center; gap: 4px; }
   .spacer { flex: 1; }
-  /* minus/plus drawn as bars: stand-ins for Segoe MDL2 E738 / E710 */
-  .minus, .plus { position: relative; width: 24px; height: 24px; }
+  .minus, .plus { position: relative; width: 22px; height: 22px; }
   .minus::before, .plus::before, .plus::after { content: ""; position: absolute; background: currentColor; border-radius: 2px; }
-  .minus::before, .plus::before { left: 0; right: 0; top: 10px; height: 4px; }
-  .plus::after { top: 0; bottom: 0; left: 10px; width: 4px; }
+  .minus::before, .plus::before { left: 0; right: 0; top: 9px; height: 4px; }
+  .plus::after { top: 0; bottom: 0; left: 9px; width: 4px; }
+  .btn.round { width: 64px; height: 64px; }
+  .readout { min-width: 104px; }
+  .group { display: flex; align-items: center; }
 </style></head>
 <body><div class="screen">
   <div id="video"></div><script src="phone.js"></script>
-  <div class="scrim"></div>
 
   <div class="overlay">
     <div class="top">
       <div class="who"><span class="name">iPhone</span><span class="small">Screen Mirroring</span></div>
       <div class="hints">
-        <span class="hint"><span class="key">LB</span><span class="key">RB</span>View</span>
-        <span class="hint"><span class="key">LT</span><span class="key">RT</span>Zoom</span>
-        <span class="hint"><span class="key">Hold B</span>Disconnect</span>
+        <span class="hint"><span class="gs"><i class="g" data-g="X"></i></span>Sound</span>
+        <span class="hint"><span class="gs"><i class="g" data-g="View"></i></span>Stats</span>
+        <span class="hint"><span class="gs"><i class="g" data-g="B"></i></span>Close</span>
+        <span class="hint"><span class="pre">Hold</span><span class="gs"><i class="g" data-g="B"></i></span>Disconnect</span>
       </div>
     </div>
     <div class="row">
-      <div class="group"><div class="caption">View</div>
-        <div class="seg">
-          <span class="btn">Fit</span><span class="btn">Fill</span><span class="btn">Zoom</span><span class="btn sel focus">Auto</span>
-        </div>
+      <div class="seg">
+        <span class="btn">Fit</span><span class="btn">Fill</span><span class="btn">Zoom</span><span class="btn sel focus">Auto</span>
       </div>
-      <div class="group"><div class="caption">Zoom</div>
-        <div class="stepper"><span class="btn round disabled"><span class="minus"></span></span>
-          <span class="readout tnum">1.0×</span><span class="btn round"><span class="plus"></span></span></div>
-      </div>
-      <div class="group"><div class="caption">Audio delay</div>
+      <div class="spacer"></div>
+      <div class="group"><span class="label">Audio delay</span>
         <div class="stepper"><span class="btn round"><span class="minus"></span></span>
           <span class="readout tnum">0 ms</span><span class="btn round"><span class="plus"></span></span></div>
       </div>
-      <div class="spacer"></div>
-      <div class="group"><span class="btn">Stats<span class="switch"></span></span></div>
-      <div class="group"><span class="btn">Disconnect</span></div>
     </div>
   </div>
-</div></body></html>
+</div><script src="glyphs.js"></script></body></html>

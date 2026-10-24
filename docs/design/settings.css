@@ -1,5 +1,5 @@
-  /* In-page panel over the dimmed idle (or live video) screen. Slides in from the right 40 px + fade, 300 ms. */
-  .dim { background: rgba(7,7,11,.78); }
+  /* In-page panel, fully opaque (#07070B: video must not show through). Slides in from the right 40 px + fade, 300 ms. */
+  .dim { background: var(--bg); }
   .page { position: absolute; inset: var(--safe-y) var(--safe-x); display: grid; grid-template-columns: 560px 1fr; gap: 80px; }
   .side .title { margin: 8px 0 44px; font-size: 64px; }
   .cats { display: flex; flex-direction: column; gap: 10px; }
@@ -8,16 +8,21 @@
   .cat.sel { background: var(--fill); color: var(--text); }
   .desc { position: absolute; bottom: 0; left: 0; width: 560px; }
   .desc .body { font-size: 30px; }
-  .desc .note { margin-top: 20px; font-size: 26px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 14px; }
-  .desc .note::before { content: ""; width: 12px; height: 12px; border-radius: 6px; background: var(--accent); }
+  .desc .note { margin-top: 20px; font-size: 26px; font-weight: 600; color: var(--text); }
 
+  /* Rows: label left; value + a fixed 60 px accessory slot right, so every value's right edge lines up.
+     Accessory says what A does: pencil (Edit, opens the keyboard), < > (Choice / Delay, Left/Right or A steps),
+     switch (On/Off). Accessories are always visible (dimmed at rest), not only on focus. */
   .list { padding-top: 126px; display: flex; flex-direction: column; gap: 12px; }
   .row { height: 96px; padding: 0 36px; border-radius: 26px; background: var(--fill-2);
     display: flex; align-items: center; justify-content: space-between; font-size: 32px; font-weight: 600; }
-  .row .val { display: flex; align-items: center; gap: 18px; color: var(--text-2); font-weight: 600; }
-  .row .val .chev { visibility: hidden; } .row.focus .val .chev { visibility: visible; }
+  .row .val { display: flex; align-items: center; gap: 22px; color: var(--text-2); font-weight: 600; }
+  .acc { width: 60px; height: 34px; display: flex; align-items: center; justify-content: flex-end; gap: 14px; color: var(--text-3); }
   .row.focus { background: var(--focus-bg); color: var(--focus-text); transform: scale(1.03); box-shadow: var(--focus-shadow); }
   .row.focus .val { color: rgba(11,11,16,.78); }
-  .chev { width: 16px; height: 16px; border-right: 4px solid currentColor; border-bottom: 4px solid currentColor; }
+  .row.focus .acc { color: var(--focus-text); }
+  .chev { width: 14px; height: 14px; border-right: 4px solid currentColor; border-bottom: 4px solid currentColor; }
   .chev.l { transform: rotate(135deg); } .chev.r { transform: rotate(-45deg); }
-  .foot { position: absolute; right: 0; bottom: 0; }
+  /* pencil: stand-in for Segoe MDL2 E70F "Edit" */
+  .pencil { width: 30px; height: 30px; }
+  .foot { position: absolute; right: 0; bottom: 0; height: 64px; }

@@ -3,7 +3,6 @@
 <link rel="stylesheet" href="settings.css">
 </head>
 <body><div class="screen">
-  <div class="backdrop"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="vignette"></div></div>
   <div class="dim"></div>
   <div class="page">
     <div class="side" style="position:relative">
@@ -11,7 +10,6 @@
       <div class="cats">
         <div class="cat">Receiver</div>
         <div class="cat sel">Picture and Sound</div>
-        <div class="cat">Advanced</div>
         <div class="cat">About</div>
       </div>
       <div class="desc">
@@ -20,13 +18,16 @@
     </div>
     <div style="position:relative">
       <div class="list">
-        <div class="row"><span>Default view</span><span class="val"><span class="chev l"></span>Auto<span class="chev r"></span></span></div>
-        <div class="row"><span>Remove black bars</span><span class="val">On<span class="switch on"></span></span></div>
-        <div class="row"><span>Sound</span><span class="val">On<span class="switch on"></span></span></div>
-        <div class="row focus"><span>Audio delay</span><span class="val"><span class="chev l"></span>+40 ms<span class="chev r"></span></span></div>
-        <div class="row"><span>Show stats</span><span class="val">Off<span class="switch"></span></span></div>
+        <div class="row"><span>Default view</span><span class="val">Auto<span class="acc"><span class="chev l"></span><span class="chev r"></span></span></span></div>
+        <div class="row"><span>Remove black bars</span><span class="val">On<span class="acc"><span class="switch on"></span></span></span></div>
+        <div class="row"><span>Sound</span><span class="val">On<span class="acc"><span class="switch on"></span></span></span></div>
+        <div class="row focus"><span>Audio delay</span><span class="val">+40 ms<span class="acc"><span class="chev l"></span><span class="chev r"></span></span></span></div>
+        <div class="row"><span>Show stats</span><span class="val">Off<span class="acc"><span class="switch"></span></span></span></div>
       </div>
-      <div class="foot hints"><span class="hint"><span class="key">B</span>Back</span></div>
+      <div class="foot hints">
+        <span class="hint"><span class="gs"><i class="g" data-g="A"></i></span>Reset</span>
+        <span class="hint"><span class="gs"><i class="g" data-g="B"></i></span>Back</span>
+      </div>
     </div>
   </div>
-</div></body></html>
+</div><script src="glyphs.js"></script></body></html>

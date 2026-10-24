@@ -1,16 +1,15 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>Idle</title><link rel="stylesheet" href="style.css">
 <style>
-  .center { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 330px; text-align: center; }
-  .status { display: inline-flex; align-items: center; gap: 16px; margin-bottom: 28px; }
-  .dot { width: 14px; height: 14px; border-radius: 7px; background: var(--accent); box-shadow: 0 0 18px rgba(142,168,255,.8); }
+  /* Ready: no status line, the screen itself says "ready" (the line exists only for a problem, see idle-error.html). */
+  .center { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 350px; text-align: center; }
   .how { margin: 44px auto 0; max-width: 1100px; font-size: 40px; }
+  .legend { position: absolute; right: var(--safe-x); bottom: var(--safe-y); height: 64px; }
 </style></head>
 <body><div class="screen">
   <div class="backdrop"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="vignette"></div></div>
 
   <div class="center">
-    <div class="status eyebrow"><span class="dot"></span>Ready for Screen Mirroring</div>
     <div class="display">Living Room</div>
     <div class="body how">On your iPhone, open Control Center, tap <span class="strong nowrap">Screen Mirroring</span>
       and choose <span class="strong nowrap">Living Room</span>.</div>
@@ -20,5 +19,11 @@
     <div class="kv"><div class="caption">Network</div><div class="v tnum">203.0.113.24</div></div>
     <div class="kv"><div class="caption">Version</div><div class="v tnum">0.1.42</div></div>
   </div>
-  <div class="corner right"><span class="hint"><span class="key">Menu</span>Settings</span></div>
-</div></body></html>
+  <div class="legend hints">
+    <span class="hint"><span class="gs"><i class="g" data-g="LB"></i><i class="g" data-g="RB"></i></span>View mode</span>
+    <span class="hint"><span class="gs"><i class="g" data-g="LT"></i><i class="g" data-g="RT"></i></span>Zoom</span>
+    <span class="hint"><span class="gs"><i class="g" data-g="View"></i></span>Stats</span>
+    <span class="hint"><span class="gs"><i class="g" data-g="Menu"></i></span>Settings</span>
+    <span class="hint"><span class="pre">Hold</span><span class="gs"><i class="g" data-g="B"></i></span>Disconnect</span>
+  </div>
+</div><script src="glyphs.js"></script></body></html>
