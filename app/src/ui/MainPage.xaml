@@ -2,17 +2,649 @@
     x:Class="XboxCast.MainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:XboxCast"
-    Background="#0B0B0F">
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    RequestedTheme="Dark"
+    Background="#FF07070B"
+    IsTabStop="True"
+    UseSystemFocusVisuals="False">
 
-    <!-- Placeholder (platform bootstrap, contract §3). ui owns this file from here on. -->
-    <Grid>
-        <SwapChainPanel x:Name="VideoPanel" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-            <TextBlock x:Name="TitleText" Text="xbox-cast" FontSize="64" FontWeight="SemiBold"
-                       Foreground="#E8E8ED" HorizontalAlignment="Center" />
-            <TextBlock x:Name="VersionText" Text="" FontSize="24" Foreground="#8E8E93"
-                       HorizontalAlignment="Center" Margin="0,12,0,0" />
+    <!-- Visual spec: docs/design/png/*.png (tokens in docs/design/style.css). Layout is 1920x1080 effective px. -->
+    <Page.Resources>
+        <SolidColorBrush x:Key="TextBrush" Color="#FFF5F5F7"/>
+        <SolidColorBrush x:Key="Text2Brush" Color="#A3EBEBF5"/>
+        <SolidColorBrush x:Key="Text3Brush" Color="#66EBEBF5"/>
+        <SolidColorBrush x:Key="FillBrush" Color="#14FFFFFF"/>
+        <SolidColorBrush x:Key="Fill2Brush" Color="#0DFFFFFF"/>
+        <SolidColorBrush x:Key="SegBrush" Color="#0FFFFFFF"/>
+        <SolidColorBrush x:Key="PanelBrush" Color="#F014141B"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#FF8EA8FF"/>
+        <SolidColorBrush x:Key="AccentFillBrush" Color="#388EA8FF"/>
+        <SolidColorBrush x:Key="KeyBrush" Color="#1FFFFFFF"/>
+        <SolidColorBrush x:Key="TransparentBrush" Color="#00000000"/>
+
+        <Style x:Key="CaptionText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="CharacterSpacing" Value="60"/>
+            <Setter Property="Foreground" Value="{StaticResource Text2Brush}"/>
+        </Style>
+        <Style x:Key="KeyCap" TargetType="Border">
+            <Setter Property="MinWidth" Value="48"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="Padding" Value="14,0"/>
+            <Setter Property="CornerRadius" Value="20"/>
+            <Setter Property="Background" Value="{StaticResource KeyBrush}"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+        <Style x:Key="KeyCapText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+        </Style>
+        <Style x:Key="HintText" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="26"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="6,0,0,0"/>
+            <Setter Property="Foreground" Value="{StaticResource Text2Brush}"/>
+        </Style>
+
+        <!-- Pill button: resting fill = Background; focus = white fill, dark text, scale 1.06, soft accent halo. -->
+        <Style x:Key="PillButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource FillBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize" Value="28"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="72"/>
+            <Setter Property="MinWidth" Value="72"/>
+            <Setter Property="Padding" Value="34,0"/>
+            <Setter Property="CornerRadius" Value="36"/>
+            <Setter Property="UseSystemFocusVisuals" Value="False"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1"/>
+                            </Grid.RenderTransform>
+                            <Border x:Name="Halo" Margin="-5" BorderThickness="5" BorderBrush="#338EA8FF"
+                                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0"/>
+                            <Border x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                            <Border x:Name="FocusFill" Background="#FFF5F5F7" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0"/>
+                            <ContentPresenter x:Name="Presenter"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Padding="{TemplateBinding Padding}"
+                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              FontSize="{TemplateBinding FontSize}"
+                                              FontWeight="{TemplateBinding FontWeight}">
+                                <ContentPresenter.Foreground>
+                                    <SolidColorBrush Color="#FFF5F5F7"/>
+                                </ContentPresenter.Foreground>
+                            </ContentPresenter>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="PointerOver"/>
+                                    <VisualState x:Name="Pressed"/>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="Root.Opacity" Value="0.35"/>
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                                <VisualStateGroup x:Name="FocusStates">
+                                    <VisualStateGroup.Transitions>
+                                        <VisualTransition GeneratedDuration="0:0:0.25">
+                                            <VisualTransition.GeneratedEasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </VisualTransition.GeneratedEasingFunction>
+                                        </VisualTransition>
+                                    </VisualStateGroup.Transitions>
+                                    <VisualState x:Name="Focused">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="FocusFill" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="1.06" Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="1.06" Duration="0"/>
+                                            <ColorAnimation Storyboard.TargetName="Presenter" Storyboard.TargetProperty="(ContentPresenter.Foreground).(SolidColorBrush.Color)" To="#FF0B0B10" Duration="0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Unfocused"/>
+                                    <VisualState x:Name="PointerFocused"/>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Row button (settings rows, categories): same focus language, gentler scale 1.03 for wide targets. -->
+        <Style x:Key="RowButton" TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource Fill2Brush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="FontSize" Value="32"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Height" Value="96"/>
+            <Setter Property="Padding" Value="36,0"/>
+            <Setter Property="CornerRadius" Value="26"/>
+            <Setter Property="UseSystemFocusVisuals" Value="False"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid x:Name="Root" RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <ScaleTransform x:Name="Scale" ScaleX="1" ScaleY="1"/>
+                            </Grid.RenderTransform>
+                            <Border x:Name="Halo" Margin="-5" BorderThickness="5" BorderBrush="#338EA8FF"
+                                    CornerRadius="{TemplateBinding CornerRadius}" Opacity="0"/>
+                            <Border x:Name="Back" Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}"/>
+                            <Border x:Name="FocusFill" Background="#FFF5F5F7" CornerRadius="{TemplateBinding CornerRadius}" Opacity="0"/>
+                            <ContentPresenter x:Name="Presenter"
+                                              Content="{TemplateBinding Content}"
+                                              ContentTemplate="{TemplateBinding ContentTemplate}"
+                                              Padding="{TemplateBinding Padding}"
+                                              HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              FontSize="{TemplateBinding FontSize}"
+                                              FontWeight="{TemplateBinding FontWeight}">
+                                <ContentPresenter.Foreground>
+                                    <SolidColorBrush Color="#FFF5F5F7"/>
+                                </ContentPresenter.Foreground>
+                            </ContentPresenter>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="PointerOver"/>
+                                    <VisualState x:Name="Pressed"/>
+                                    <VisualState x:Name="Disabled">
+                                        <VisualState.Setters>
+                                            <Setter Target="Root.Opacity" Value="0.35"/>
+                                        </VisualState.Setters>
+                                    </VisualState>
+                                </VisualStateGroup>
+                                <VisualStateGroup x:Name="FocusStates">
+                                    <VisualStateGroup.Transitions>
+                                        <VisualTransition GeneratedDuration="0:0:0.25">
+                                            <VisualTransition.GeneratedEasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </VisualTransition.GeneratedEasingFunction>
+                                        </VisualTransition>
+                                    </VisualStateGroup.Transitions>
+                                    <VisualState x:Name="Focused">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="FocusFill" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="Halo" Storyboard.TargetProperty="Opacity" To="1" Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleX" To="1.03" Duration="0"/>
+                                            <DoubleAnimation Storyboard.TargetName="Scale" Storyboard.TargetProperty="ScaleY" To="1.03" Duration="0"/>
+                                            <ColorAnimation Storyboard.TargetName="Presenter" Storyboard.TargetProperty="(ContentPresenter.Foreground).(SolidColorBrush.Color)" To="#FF0B0B10" Duration="0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Unfocused"/>
+                                    <VisualState x:Name="PointerFocused"/>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CategoryButton" TargetType="Button" BasedOn="{StaticResource RowButton}">
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="Height" Value="84"/>
+            <Setter Property="Padding" Value="30,0"/>
+            <Setter Property="CornerRadius" Value="22"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style x:Key="SegButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="Padding" Value="30,0"/>
+            <Setter Property="CornerRadius" Value="32"/>
+            <Setter Property="Margin" Value="3,0"/>
+        </Style>
+        <Style x:Key="RoundButton" TargetType="Button" BasedOn="{StaticResource PillButton}">
+            <Setter Property="Width" Value="72"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+
+        <Style x:Key="RowLabel" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style x:Key="RowValue" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Opacity" Value="0.72"/>
+            <Setter Property="Margin" Value="18,0"/>
+        </Style>
+        <Style x:Key="Chevron" TargetType="FontIcon">
+            <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Opacity" Value="0"/>
+        </Style>
+        <Style x:Key="SwitchTrack" TargetType="Border">
+            <Setter Property="Width" Value="60"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="CornerRadius" Value="17"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Background" Value="#42FFFFFF"/>
+        </Style>
+        <Style x:Key="SwitchKnob" TargetType="Ellipse">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Fill" Value="#FFFFFFFF"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+        </Style>
+        <Style x:Key="HelpTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="30"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="LineHeight" Value="42"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{StaticResource Text2Brush}"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid x:Name="LayoutRoot">
+        <!-- Video: full-bleed, owned by MediaPipeline. Never renamed (contract §3). -->
+        <SwapChainPanel x:Name="VideoPanel"/>
+
+        <!-- ============ Idle / Connecting ============ -->
+        <Grid x:Name="IdleLayer" Background="#FF07070B">
+            <!-- Composition visuals (drifting radial blobs + vignette) are attached here from code. -->
+            <Grid x:Name="Backdrop"/>
+
+            <StackPanel x:Name="IdleContent" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,330,96,0">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,28">
+                    <Ellipse Width="14" Height="14" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="IdleStatusText" Text="Ready for Screen Mirroring" FontSize="32" FontWeight="SemiBold"
+                               Foreground="{StaticResource Text2Brush}"/>
+                </StackPanel>
+                <TextBlock x:Name="IdleNameText" Text="Xbox" FontSize="136" FontWeight="SemiBold" CharacterSpacing="-20"
+                           HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="1728"
+                           Foreground="{StaticResource TextBrush}"/>
+                <TextBlock x:Name="IdleHowText" FontSize="40" FontWeight="Medium" LineHeight="56" TextWrapping="Wrap"
+                           TextAlignment="Center" HorizontalAlignment="Center" MaxWidth="1100" Margin="0,44,0,0"
+                           Foreground="{StaticResource Text2Brush}">
+                    <Run Text="On your iPhone, open Control Center, tap "/><Run Text="Screen Mirroring" Foreground="{StaticResource TextBrush}"/><Run Text=" and choose "/><Run x:Name="IdleHowName" Text="Xbox" Foreground="{StaticResource TextBrush}"/><Run Text="."/>
+                </TextBlock>
+            </StackPanel>
+
+            <StackPanel x:Name="ConnectingContent" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,360,96,0"
+                        Opacity="0" Visibility="Collapsed">
+                <Grid Width="64" Height="64" HorizontalAlignment="Center" Margin="0,0,0,48">
+                    <Ellipse Stroke="#1FFFFFFF" StrokeThickness="6"/>
+                    <Path x:Name="SpinnerArc" Data="M 32,3 A 29,29 0 0 1 61,32" Stroke="{StaticResource AccentBrush}"
+                          StrokeThickness="6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" RenderTransformOrigin="0.5,0.5"
+                          Width="64" Height="64" Stretch="None">
+                        <Path.RenderTransform>
+                            <RotateTransform x:Name="SpinnerRotate" Angle="0"/>
+                        </Path.RenderTransform>
+                    </Path>
+                </Grid>
+                <TextBlock x:Name="ConnectingTitle" Text="Connecting" FontSize="56" FontWeight="SemiBold"
+                           HorizontalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                <TextBlock x:Name="ConnectingHint" Text="Keep Screen Mirroring open on your iPhone. This can take a few seconds."
+                           FontSize="38" FontWeight="Medium" LineHeight="52" TextWrapping="Wrap" TextAlignment="Center"
+                           MaxWidth="900" Margin="0,28,0,0" Opacity="0" HorizontalAlignment="Center"
+                           Foreground="{StaticResource Text2Brush}"/>
+            </StackPanel>
+
+            <StackPanel x:Name="IdleCorner" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="96,0,0,54">
+                <StackPanel Margin="0,0,48,0">
+                    <TextBlock Text="NETWORK" Style="{StaticResource CaptionText}" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="NetworkText" Text="Not connected" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource Text2Brush}"/>
+                </StackPanel>
+                <StackPanel>
+                    <TextBlock Text="VERSION" Style="{StaticResource CaptionText}" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="VersionText" Text="0.0.0" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource Text2Brush}"/>
+                </StackPanel>
+            </StackPanel>
+            <StackPanel x:Name="IdleHints" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,96,54">
+                <Border Style="{StaticResource KeyCap}"><TextBlock Text="Menu" Style="{StaticResource KeyCapText}"/></Border>
+                <TextBlock Text="Settings" Style="{StaticResource HintText}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ Mirroring overlay (bottom bar) ============ -->
+        <Grid x:Name="OverlayLayer" Visibility="Collapsed" Opacity="0">
+            <Rectangle Height="520" VerticalAlignment="Bottom" IsHitTestVisible="False">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#00000000" Offset="0"/>
+                        <GradientStop Color="#8C000000" Offset="0.6"/>
+                        <GradientStop Color="#B3000000" Offset="1"/>
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Border x:Name="OverlayPanel" VerticalAlignment="Bottom" Margin="96,0,96,54" Padding="40,34,40,36"
+                    CornerRadius="36" Background="{StaticResource PanelBrush}">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="OverlayShift" Y="0"/>
+                </Border.RenderTransform>
+                <StackPanel>
+                    <Grid Margin="0,0,0,30">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="ClientNameText" Text="iPhone" FontSize="40" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                            <TextBlock Text="Screen Mirroring" FontSize="28" FontWeight="Medium" Margin="20,0,0,0" VerticalAlignment="Bottom"
+                                       Foreground="{StaticResource Text2Brush}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="LB" Style="{StaticResource KeyCapText}"/></Border>
+                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="RB" Style="{StaticResource KeyCapText}"/></Border>
+                            <TextBlock Text="View" Style="{StaticResource HintText}" Margin="6,0,40,0"/>
+                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="LT" Style="{StaticResource KeyCapText}"/></Border>
+                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="RT" Style="{StaticResource KeyCapText}"/></Border>
+                            <TextBlock Text="Zoom" Style="{StaticResource HintText}" Margin="6,0,40,0"/>
+                            <Border Style="{StaticResource KeyCap}"><TextBlock Text="Hold B" Style="{StaticResource KeyCapText}"/></Border>
+                            <TextBlock Text="Disconnect" Style="{StaticResource HintText}"/>
+                        </StackPanel>
+                    </Grid>
+                    <Grid x:Name="OverlayRow">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,36,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="VIEW" Style="{StaticResource CaptionText}" Margin="4,0,0,12"/>
+                            <Border CornerRadius="38" Background="{StaticResource SegBrush}" Padding="3,4">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button x:Name="ModeFit" Style="{StaticResource SegButton}" Tag="Fit">
+                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeFitDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Fit"/></StackPanel>
+                                    </Button>
+                                    <Button x:Name="ModeFill" Style="{StaticResource SegButton}" Tag="Fill">
+                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeFillDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Fill"/></StackPanel>
+                                    </Button>
+                                    <Button x:Name="ModeZoom" Style="{StaticResource SegButton}" Tag="Zoom">
+                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeZoomDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Zoom"/></StackPanel>
+                                    </Button>
+                                    <Button x:Name="ModeAuto" Style="{StaticResource SegButton}" Tag="Auto">
+                                        <StackPanel Orientation="Horizontal"><Ellipse x:Name="ModeAutoDot" Width="12" Height="12" Fill="#FF4D66D6" Margin="0,0,12,0" VerticalAlignment="Center" Visibility="Collapsed"/><TextBlock Text="Auto"/></StackPanel>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="0,0,36,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="ZOOM" Style="{StaticResource CaptionText}" Margin="4,0,0,12"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="ZoomOutButton" Style="{StaticResource RoundButton}">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE738;" FontSize="24"/>
+                                </Button>
+                                <TextBlock x:Name="ZoomText" Text="1.0x" FontSize="28" FontWeight="SemiBold" Width="112" TextAlignment="Center"
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                                <Button x:Name="ZoomInButton" Style="{StaticResource RoundButton}">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE710;" FontSize="24"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="0,0,36,0" VerticalAlignment="Bottom">
+                            <TextBlock Text="AUDIO DELAY" Style="{StaticResource CaptionText}" Margin="4,0,0,12"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="DelayDownButton" Style="{StaticResource RoundButton}">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE738;" FontSize="24"/>
+                                </Button>
+                                <TextBlock x:Name="DelayText" Text="0 ms" FontSize="28" FontWeight="SemiBold" Width="124" TextAlignment="Center"
+                                           VerticalAlignment="Center" Foreground="{StaticResource TextBrush}"/>
+                                <Button x:Name="DelayUpButton" Style="{StaticResource RoundButton}">
+                                    <FontIcon FontFamily="Segoe MDL2 Assets" Glyph="&#xE710;" FontSize="24"/>
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                        <Button x:Name="StatsToggleButton" Grid.Column="4" Style="{StaticResource PillButton}" VerticalAlignment="Bottom" Margin="0,0,24,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Stats" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                <Border x:Name="StatsSwitchTrack" Style="{StaticResource SwitchTrack}">
+                                    <Ellipse x:Name="StatsSwitchKnob" Style="{StaticResource SwitchKnob}"/>
+                                </Border>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="DisconnectButton" Grid.Column="5" Style="{StaticResource PillButton}" VerticalAlignment="Bottom"
+                                Content="Disconnect"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ============ Stats (never takes focus) ============ -->
+        <Border x:Name="StatsPanel" Visibility="Collapsed" Opacity="0" Width="470" VerticalAlignment="Top" HorizontalAlignment="Right"
+                Margin="0,54,96,0" Padding="34,30,34,32" CornerRadius="28" Background="#D60E0E14" BorderBrush="#12FFFFFF"
+                BorderThickness="1" IsHitTestVisible="False">
+            <StackPanel>
+                <TextBlock Text="STATS" Style="{StaticResource CaptionText}" Margin="0,0,0,18"/>
+                <Grid x:Name="StatsGrid">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- ============ Hold B ring ============ -->
+        <StackPanel x:Name="HoldRing" Visibility="Collapsed" Opacity="0" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                    Margin="0,0,0,380" IsHitTestVisible="False">
+            <Grid Width="96" Height="96" HorizontalAlignment="Center">
+                <Ellipse Fill="#E614141B"/>
+                <Ellipse x:Name="HoldTrack" Margin="6" Stroke="#29FFFFFF" StrokeThickness="6"/>
+                <Path x:Name="HoldArc" Stroke="{StaticResource AccentBrush}" StrokeThickness="6" StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round" Width="96" Height="96" Stretch="None"/>
+            </Grid>
+            <Border Margin="0,20,0,0" Padding="24,10" CornerRadius="24" Background="#E614141B" HorizontalAlignment="Center">
+                <TextBlock Text="Hold to disconnect" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+            </Border>
         </StackPanel>
+
+        <!-- ============ Settings (in-page panel) ============ -->
+        <Grid x:Name="SettingsLayer" Visibility="Collapsed" Opacity="0">
+            <Rectangle Fill="#C707070B"/>
+            <Grid x:Name="SettingsBody" Margin="96,54,96,54">
+                <Grid.RenderTransform>
+                    <TranslateTransform x:Name="SettingsShift" X="0"/>
+                </Grid.RenderTransform>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="560"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid Grid.Column="0">
+                    <StackPanel x:Name="CategoryList">
+                        <TextBlock Text="Settings" FontSize="64" FontWeight="SemiBold" Margin="0,8,0,44" Foreground="{StaticResource TextBrush}"/>
+                        <Button x:Name="CatReceiver" Style="{StaticResource CategoryButton}" Tag="0"><TextBlock Text="Receiver"/></Button>
+                        <Button x:Name="CatPicture" Style="{StaticResource CategoryButton}" Tag="1"><TextBlock Text="Picture and Sound"/></Button>
+                        <Button x:Name="CatAdvanced" Style="{StaticResource CategoryButton}" Tag="2"><TextBlock Text="Advanced"/></Button>
+                        <Button x:Name="CatAbout" Style="{StaticResource CategoryButton}" Tag="3"><TextBlock Text="About"/></Button>
+                    </StackPanel>
+                    <StackPanel VerticalAlignment="Bottom">
+                        <TextBlock x:Name="HelpText" Style="{StaticResource HelpTextStyle}" Text=""/>
+                        <StackPanel x:Name="RestartNote" Orientation="Horizontal" Margin="0,20,0,0" Visibility="Collapsed">
+                            <Ellipse Width="12" Height="12" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                            <TextBlock Text="Applies on next connection" FontSize="26" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Column="2" Margin="0,126,0,0">
+                    <!-- Receiver -->
+                    <StackPanel x:Name="PaneReceiver">
+                        <Grid>
+                            <Button x:Name="RowName" Style="{StaticResource RowButton}">
+                                <Grid>
+                                    <TextBlock Text="Name" Style="{StaticResource RowLabel}"/>
+                                    <TextBlock x:Name="ValName" Style="{StaticResource RowValue}" HorizontalAlignment="Right" Margin="0" Text="Xbox"/>
+                                </Grid>
+                            </Button>
+                            <TextBox x:Name="NameBox" Visibility="Collapsed" Height="96" FontSize="32" FontWeight="SemiBold" Padding="36,26,36,0"
+                                     MaxLength="40" VerticalAlignment="Top" Margin="0,0,0,12" CornerRadius="26" UseSystemFocusVisuals="False"/>
+                        </Grid>
+                        <Button x:Name="RowResolution" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Resolution" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
+                                    <TextBlock x:Name="ValResolution" Style="{StaticResource RowValue}" Text="1080p"/>
+                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowFps" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Frame rate" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
+                                    <TextBlock x:Name="ValFps" Style="{StaticResource RowValue}" Text="60 fps"/>
+                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowH265" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="H.265 video" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="ValH265" Style="{StaticResource RowValue}" Text="On"/>
+                                    <Border x:Name="SwH265" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobH265" Style="{StaticResource SwitchKnob}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowPin" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Require code to connect" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="ValPin" Style="{StaticResource RowValue}" Text="Off"/>
+                                    <Border x:Name="SwPin" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobPin" Style="{StaticResource SwitchKnob}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Picture and Sound -->
+                    <StackPanel x:Name="PanePicture" Visibility="Collapsed">
+                        <Button x:Name="RowViewMode" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Default view" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
+                                    <TextBlock x:Name="ValViewMode" Style="{StaticResource RowValue}" Text="Auto"/>
+                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowAutoCrop" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Remove black bars" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="ValAutoCrop" Style="{StaticResource RowValue}" Text="On"/>
+                                    <Border x:Name="SwAutoCrop" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobAutoCrop" Style="{StaticResource SwitchKnob}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowAudio" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Sound" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="ValAudio" Style="{StaticResource RowValue}" Text="On"/>
+                                    <Border x:Name="SwAudio" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobAudio" Style="{StaticResource SwitchKnob}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowDelay" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Audio delay" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
+                                    <TextBlock x:Name="ValDelay" Style="{StaticResource RowValue}" Text="0 ms"/>
+                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                        <Button x:Name="RowStats" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Show stats" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <TextBlock x:Name="ValStats" Style="{StaticResource RowValue}" Text="Off"/>
+                                    <Border x:Name="SwStats" Style="{StaticResource SwitchTrack}"><Ellipse x:Name="KnobStats" Style="{StaticResource SwitchKnob}"/></Border>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Advanced -->
+                    <StackPanel x:Name="PaneAdvanced" Visibility="Collapsed">
+                        <Button x:Name="RowMdns" Style="{StaticResource RowButton}">
+                            <Grid>
+                                <TextBlock Text="Discovery" Style="{StaticResource RowLabel}"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <FontIcon Glyph="&#xE76B;" Style="{StaticResource Chevron}"/>
+                                    <TextBlock x:Name="ValMdns" Style="{StaticResource RowValue}" Text="Built-in"/>
+                                    <FontIcon Glyph="&#xE76C;" Style="{StaticResource Chevron}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- About (read only, not focusable) -->
+                    <StackPanel x:Name="PaneAbout" Visibility="Collapsed" Padding="36,8,0,0">
+                        <TextBlock x:Name="AboutVersion" Text="Version 0.0.0" FontSize="36" FontWeight="SemiBold" Foreground="{StaticResource TextBrush}"/>
+                        <TextBlock x:Name="AboutCore" Text="" FontSize="28" FontWeight="Medium" Margin="0,12,0,0" Foreground="{StaticResource Text2Brush}"/>
+                        <TextBlock Style="{StaticResource HelpTextStyle}" Margin="0,40,0,0" MaxWidth="1000" HorizontalAlignment="Left"
+                                   Text="Free software under the GNU GPL version 3. Includes UxPlay (GPL-3.0), FFmpeg (LGPL-2.1+), libplist (LGPL-2.1+), llhttp (MIT) and OpenSSL (Apache-2.0). Source code and full license texts: github.com/DmytroKhrishu/xbox-cast"/>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                    <Border Style="{StaticResource KeyCap}"><TextBlock Text="B" Style="{StaticResource KeyCapText}"/></Border>
+                    <TextBlock Text="Back" Style="{StaticResource HintText}"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <!-- ============ PIN ============ -->
+        <Grid x:Name="PinLayer" Visibility="Collapsed" Opacity="0">
+            <Rectangle Fill="#F207070B"/>
+            <StackPanel VerticalAlignment="Top" HorizontalAlignment="Center" Margin="96,290,96,0">
+                <TextBlock Text="Enter this code on your iPhone" FontSize="56" FontWeight="SemiBold" HorizontalAlignment="Center"
+                           Foreground="{StaticResource TextBrush}"/>
+                <StackPanel x:Name="PinDigits" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,56,0,52"/>
+                <TextBlock Text="Your iPhone asks for it after you choose this screen in Screen Mirroring." FontSize="38"
+                           FontWeight="Medium" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="1100"
+                           HorizontalAlignment="Center" Foreground="{StaticResource Text2Brush}"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="0,0,96,54">
+                <Border Style="{StaticResource KeyCap}"><TextBlock Text="B" Style="{StaticResource KeyCapText}"/></Border>
+                <TextBlock Text="Cancel" Style="{StaticResource HintText}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ============ Toast ============ -->
+        <Border x:Name="Toast" Visibility="Collapsed" Opacity="0" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,54,0,0"
+                Padding="30,24,40,24" CornerRadius="40" Background="#F01E1E28" BorderBrush="#14FFFFFF" BorderThickness="1"
+                IsHitTestVisible="False">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="ToastShift" Y="0"/>
+            </Border.RenderTransform>
+            <StackPanel Orientation="Horizontal">
+                <Ellipse x:Name="ToastDot" Width="14" Height="14" Fill="#73FFFFFF" VerticalAlignment="Center" Margin="0,0,22,0"/>
+                <TextBlock x:Name="ToastTitle" Text="" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center"
+                           Foreground="{StaticResource TextBrush}"/>
+                <TextBlock x:Name="ToastDetail" Text="" FontSize="26" FontWeight="Medium" VerticalAlignment="Center" Margin="22,0,0,0"
+                           Foreground="{StaticResource Text2Brush}"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Page>

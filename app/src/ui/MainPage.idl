@@ -1,7 +1,5 @@
 namespace XboxCast
 {
-    // Placeholder committed by platform (contract §3 bootstrap); owned by ui afterwards.
-    // Never rename the runtimeclass or the VideoPanel element.
     [default_interface]
     runtimeclass MainPage : Windows.UI.Xaml.Controls.Page
     {
