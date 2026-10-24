@@ -128,6 +128,18 @@ Linux: `cmake -S native -B build && cmake --build build` builds `castcore` + `ho
   enum class ViewMode { Fit, Fill, Zoom, Auto };   // Auto = auto-crop black bars, then Fill if the crop fits within ~8% loss, else Fit
   ```
   Transitions between modes animate (~300 ms ease) in the renderer, never pop.
+- Wiring: `ReceiverHost::Instance()` is a process-wide singleton started by `App` on launch (and stopped on suspend,
+  restarted on resume). `MainPage` (ui) owns one `MediaPipeline`, calls `Attach(panel)` and
+  `ReceiverHost::Instance().SetSinks(&pipeline, &pipeline)`, and subscribes to ReceiverHost events for state changes.
+- Bootstrap of `MainPage`: platform commits a minimal placeholder `app/src/ui/MainPage.{idl,xaml,h,cpp}` (runtimeclass
+  `XboxCast.MainPage`, a full-screen `SwapChainPanel x:Name="VideoPanel"` + a TextBlock) so the app builds and launches.
+  After that commit, ui owns those files. Nobody renames `XboxCast.MainPage` or `VideoPanel`.
+- Package/link deps platform puts in the project for everyone: NuGet `Microsoft.Windows.CppWinRT`,
+  `FFmpegInteropX.UWP.FFmpeg` 8.1.2 (headers under `include/`, import libs + DLLs under `runtimes/win-x64/native`, DLLs
+  packaged next to the exe), link `d3d11.lib dxgi.lib d3dcompiler.lib xaudio2.lib ws2_32.lib` + castcore `link.txt`.
+  Shaders: `app/src/media/*.hlsl` compiled by FxCompile (platform adds the item type wildcard).
+- Compile guard: until castcore links in CI, ReceiverHost builds behind `XC_HAVE_CASTCORE` (defined by the project when
+  `native/out/uwp-x64/lib/link.txt` exists); without it the app runs with no receiver (idle screen only).
 - `app/src/settings/Settings.h` (platform): typed accessors over `ApplicationData::Current().LocalSettings()` + `Changed` event.
 
 ### Settings keys (LocalSettings, owner: platform; UI edits them, ReceiverHost/Media react)
