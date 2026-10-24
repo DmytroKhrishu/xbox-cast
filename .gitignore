@@ -1,0 +1,4 @@
+.env
+*.pfx
+*.jks
+node_modules
