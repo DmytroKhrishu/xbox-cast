@@ -1,0 +1,18 @@
+<Page
+    x:Class="XboxCast.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:XboxCast"
+    Background="#0B0B0F">
+
+    <!-- Placeholder (platform bootstrap, contract §3). ui owns this file from here on. -->
+    <Grid>
+        <SwapChainPanel x:Name="VideoPanel" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" />
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock x:Name="TitleText" Text="xbox-cast" FontSize="64" FontWeight="SemiBold"
+                       Foreground="#E8E8ED" HorizontalAlignment="Center" />
+            <TextBlock x:Name="VersionText" Text="" FontSize="24" Foreground="#8E8E93"
+                       HorizontalAlignment="Center" Margin="0,12,0,0" />
+        </StackPanel>
+    </Grid>
+</Page>

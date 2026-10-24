@@ -1,0 +1,174 @@
+name: build
+
+# Sideload build of the UWP app (signed .msix + its x64 dependencies). docs/building.md explains secrets/variables.
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', 'native/**', '.github/workflows/build.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Toolchain info
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          & $vswhere -all -products * -format json | ConvertFrom-Json | % { "VS {0} {1}" -f $_.installationVersion, $_.installationPath }
+          & $vswhere -all -products * -requires Microsoft.VisualStudio.ComponentGroup.UWP.VC -property installationPath | % { "C++ UWP tools in: $_" }
+          Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Include" -Directory | % { "Windows SDK: $($_.Name)" }
+
+      # castcore (native/, owner: core). Built only once native/build-uwp.ps1 exists; until then the app builds without the
+      # receiver (XC_HAVE_CASTCORE off, idle screen only).
+      - name: castcore present?
+        id: core
+        shell: pwsh
+        run: |
+          $have = Test-Path native/build-uwp.ps1
+          "have=$($have.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          if ($have) { "native/build-uwp.ps1 found: building castcore" } else { "::notice::native/build-uwp.ps1 not on this commit: building without castcore (XC_HAVE_CASTCORE off)" }
+
+      - name: vcpkg binary cache
+        if: steps.core.outputs.have == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-bincache
+          key: vcpkg-x64-uwp-${{ hashFiles('native/vcpkg.json', 'native/vcpkg-configuration.json', 'native/build-uwp.ps1') }}
+          restore-keys: vcpkg-x64-uwp-
+
+      - name: Build castcore (x64-uwp)
+        if: steps.core.outputs.have == 'true'
+        shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}/vcpkg-bincache
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          pwsh native/build-uwp.ps1 -Arch x64 -Config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if (!(Test-Path native/out/uwp-x64/lib/link.txt)) { throw "build-uwp.ps1 finished but native/out/uwp-x64/lib/link.txt is missing" }
+          "link.txt:"; Get-Content native/out/uwp-x64/lib/link.txt
+
+      - name: Signing cert from secret (stable key, so updates install over the old build)
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.SIGNING_PFX_B64 }}
+          PFX_PW: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: |
+          $f = Join-Path $env:RUNNER_TEMP "XboxCast.pfx"
+          $m = "app\Package.appxmanifest"
+          $publisher = ([xml](Get-Content $m -Raw)).Package.Identity.Publisher
+          if ($env:PFX_B64) {
+            [IO.File]::WriteAllBytes($f, [Convert]::FromBase64String($env:PFX_B64)); $pwText = $env:PFX_PW
+          } else {
+            # No secret (fresh fork): a throwaway cert for this run only. Installs work, but the next build can't update it
+            # in place (different key): deploy with --reinstall. Set SIGNING_PFX_B64/PASSWORD for stable updates.
+            echo "::warning::No SIGNING_PFX_B64 secret: signing with a per-run self-signed cert ($publisher). See docs/building.md."
+            $pwText = [guid]::NewGuid().ToString()
+            $c = New-SelfSignedCertificate -Type Custom -Subject $publisher -KeyUsage DigitalSignature -FriendlyName "xbox-cast per-run" -CertStoreLocation Cert:\CurrentUser\My -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+            Export-PfxCertificate -Cert $c -FilePath $f -Password (ConvertTo-SecureString $pwText -Force -AsPlainText) | Out-Null
+          }
+          $pw = ConvertTo-SecureString -String $pwText -Force -AsPlainText
+          $c = Import-PfxCertificate -FilePath $f -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+          if ($c.Subject -ne $publisher) { throw "signing cert subject '$($c.Subject)' != manifest Publisher '$publisher' (docs/building.md)" }
+          echo "::add-mask::$pwText"
+          echo "PFX_FILE=$f" >> $env:GITHUB_ENV
+          echo "PFX_PW=$pwText" >> $env:GITHUB_ENV
+          echo "THUMB=$($c.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Stamp version 0.1.<run_number + VERSION_OFFSET>.0 + sideload identity
+        shell: pwsh
+        env:
+          # Repo variables (optional). SIDELOAD_IDENTITY: package Identity Name (default XboxCast.Sideload from the manifest).
+          SIDELOAD_IDENTITY: ${{ vars.SIDELOAD_IDENTITY }}
+          SIDELOAD_PHONE_PRODUCT_ID: ${{ vars.SIDELOAD_PHONE_PRODUCT_ID }}
+          VERSION_OFFSET: ${{ vars.VERSION_OFFSET }}
+        run: |
+          $v = "0.1.$([int]'${{ github.run_number }}' + [int]('0' + $env:VERSION_OFFSET)).0"
+          $m = "app\Package.appxmanifest"
+          [xml]$x = Get-Content $m -Raw
+          $ns = New-Object Xml.XmlNamespaceManager $x.NameTable
+          $ns.AddNamespace("f", "http://schemas.microsoft.com/appx/manifest/foundation/windows10")
+          $ns.AddNamespace("mp", "http://schemas.microsoft.com/appx/2014/phone/manifest")
+          $id = $x.SelectSingleNode("/f:Package/f:Identity", $ns)
+          $phone = $x.SelectSingleNode("/f:Package/mp:PhoneIdentity", $ns)
+          $name = if ($env:SIDELOAD_IDENTITY) { $env:SIDELOAD_IDENTITY } else { $id.GetAttribute("Name") }
+          if ($name -notmatch '^[A-Za-z0-9.-]{3,50}$') { throw "SIDELOAD_IDENTITY '$name' is not a valid package name (3-50 of A-Z a-z 0-9 . -)" }
+          if ($env:SIDELOAD_PHONE_PRODUCT_ID) { $phone.SetAttribute("PhoneProductId", $env:SIDELOAD_PHONE_PRODUCT_ID) }
+          $id.SetAttribute("Name", $name)
+          $id.SetAttribute("Version", $v)
+          $x.Save((Resolve-Path $m))
+          Select-String -Path $m -Pattern '<Identity'
+          echo "XC_VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Restore NuGet packages
+        run: nuget restore app\XboxCast.sln -NonInteractive
+
+      - name: Build appx
+        run: >
+          msbuild app\XboxCast.vcxproj /m
+          /p:Configuration=Release /p:Platform=x64
+          /p:AppxBundle=Never
+          /p:UapAppxPackageBuildMode=SideloadOnly
+          /p:AppxPackageDir=${{ github.workspace }}\out\
+          /p:PackageCertificateKeyFile=${{ env.PFX_FILE }}
+          /p:PackageCertificatePassword=${{ env.PFX_PW }}
+          /p:PackageCertificateThumbprint=${{ env.THUMB }}
+          /v:minimal
+
+      - name: Smoke check the package
+        shell: pwsh
+        run: |
+          $msix = @(Get-ChildItem out -Recurse -Filter *.msix | ? { $_.FullName -notmatch '\\Dependencies\\' })
+          if ($msix.Count -ne 1) { throw "expected 1 main msix, found $($msix.Count)" }
+          $msix = $msix[0]
+          "package: $($msix.FullName) ($([int]($msix.Length/1KB)) KB)"
+          $sig = Get-AuthenticodeSignature $msix.FullName
+          "signature: $($sig.Status) signer: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -eq 'NotSigned') { throw "package is not signed" }
+          $x = Join-Path $env:RUNNER_TEMP "msix-x"
+          Remove-Item -Recurse -Force $x -ErrorAction SilentlyContinue
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::ExtractToDirectory($msix.FullName, $x)
+          $files = Get-ChildItem $x -Recurse -File
+          $files | Sort-Object FullName | % { "  {0,10}  {1}" -f $_.Length, $_.FullName.Substring($x.Length + 1) }
+          $need = @('XboxCast.exe', 'resources.pri', 'AppxManifest.xml', 'avcodec-62.dll', 'avformat-62.dll', 'avutil-60.dll', 'swresample-6.dll', 'swscale-9.dll')
+          $missing = $need | ? { -not (Test-Path (Join-Path $x $_)) }
+          if ($missing) { throw "missing in package root: $($missing -join ', ')" }
+          $bad = @()
+          foreach ($f in $files) {
+            $t = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($f.FullName))
+            if ($t -match '192\.168\.\d{1,3}\.\d{1,3}' -or $t -match '\.ts\.net') { $bad += $f.FullName.Substring($x.Length + 1) }
+          }
+          if ($bad) { throw "private-looking strings (LAN IP / tailnet name) in: $($bad -join ', ')" }
+          [xml]$am = Get-Content (Join-Path $x 'AppxManifest.xml') -Raw
+          "identity: $($am.Package.Identity.Name) $($am.Package.Identity.Version) $($am.Package.Identity.Publisher)"
+          $deps = Get-ChildItem out -Recurse -Include *.appx, *.msix | ? { $_.FullName -match '\\Dependencies\\x64\\' -and $_.Name -notmatch '\.Desktop\.' }
+          "dependencies (x64, non-Desktop):"; $deps | % { "  $($_.Name)" }
+          $core = Select-String -Path (Join-Path $x 'XboxCast.exe') -Pattern 'castcore' -SimpleMatch -Quiet
+          "XC_HAVE_CASTCORE=${{ steps.core.outputs.have }} (castcore strings in exe: $core)"
+          # Stage only what deploy.py needs: the msix + Dependencies/x64 (no Desktop VCLibs, no .cer/.ps1).
+          $stage = Join-Path $env:GITHUB_WORKSPACE 'artifact'
+          New-Item -ItemType Directory -Force (Join-Path $stage 'Dependencies\x64') | Out-Null
+          Copy-Item $msix.FullName $stage
+          $deps | % { Copy-Item $_.FullName (Join-Path $stage 'Dependencies\x64') }
+          "## xbox-cast $env:XC_VERSION" >> $env:GITHUB_STEP_SUMMARY
+          "identity $($am.Package.Identity.Name), castcore: ${{ steps.core.outputs.have }}" >> $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xboxcast-x64
+          retention-days: 3
+          path: artifact/
+          if-no-files-found: error

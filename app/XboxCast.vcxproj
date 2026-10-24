@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  xbox-cast UWP app (C++/WinRT, Windows.UI.Xaml), x64 only. Owner: platform (docs/contract.md "Ownership").
+  Sources are picked up by wildcard, so media/ui add files without editing this project:
+    src\**\*.cpp   ClCompile (pch.h)          src\**\*.h     ClInclude
+    src\**\*.xaml  Page (code-behind = same name .h/.cpp/.idl next to it)
+    src\**\*.idl   Midl                       src\**\*.hlsl  FxCompile (see "Shaders" below)
+  castcore: if ..\native\out\uwp-x64\lib\link.txt exists, XC_HAVE_CASTCORE is defined and every lib it lists is linked.
+-->
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.props" Condition="Exists('packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.props')" />
+  <PropertyGroup Label="Globals">
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
+    <CppWinRTGenerateWindowsMetadata>true</CppWinRTGenerateWindowsMetadata>
+    <MinimalCoreWin>true</MinimalCoreWin>
+    <ProjectGuid>{6B5E049D-F938-4942-8543-5B5D1AD48EB0}</ProjectGuid>
+    <ProjectName>XboxCast</ProjectName>
+    <RootNamespace>XboxCast</RootNamespace>
+    <DefaultLanguage>en-US</DefaultLanguage>
+    <MinimumVisualStudioVersion>17.0</MinimumVisualStudioVersion>
+    <AppContainerApplication>true</AppContainerApplication>
+    <ApplicationType>Windows Store</ApplicationType>
+    <ApplicationTypeRevision>10.0</ApplicationTypeRevision>
+    <WindowsTargetPlatformVersion Condition=" '$(WindowsTargetPlatformVersion)' == '' ">10.0.26100.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>10.0.22621.0</WindowsTargetPlatformMinVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <!-- v143 (VS 2022 C++ UWP tools, component group Microsoft.VisualStudio.ComponentGroup.UWP.VC). Override with
+         /p:PlatformToolset=... if your Visual Studio has a newer toolset with UWP support. -->
+    <PlatformToolset Condition="'$(PlatformToolset)' == ''">v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Debug'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)'=='Release'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <!-- NuGet .targets (FFmpegInteropX) key their runtimes\win-$(PlatformTarget) paths off this; C++ projects don't set it. -->
+  <PropertyGroup>
+    <PlatformTarget Condition="'$(PlatformTarget)' == ''">$(Platform)</PlatformTarget>
+  </PropertyGroup>
+
+  <!-- Packaging. CI passes PackageCertificateKeyFile/Password/Thumbprint (docs/building.md); local builds without a cert
+       produce an unsigned package (Visual Studio F5 deploys a loose layout and needs no signature). -->
+  <PropertyGroup>
+    <AppxBundlePlatforms>x64</AppxBundlePlatforms>
+    <AppxBundle Condition="'$(AppxBundle)' == ''">Never</AppxBundle>
+    <GenerateAppInstallerFile>False</GenerateAppInstallerFile>
+    <AppxPackageSigningEnabled Condition="'$(PackageCertificateKeyFile)' != ''">True</AppxPackageSigningEnabled>
+    <AppxPackageSigningEnabled Condition="'$(PackageCertificateKeyFile)' == ''">False</AppxPackageSigningEnabled>
+    <AppxSymbolPackageEnabled>False</AppxSymbolPackageEnabled>
+    <AppxPackageSigningTimestampDigestAlgorithm>SHA256</AppxPackageSigningTimestampDigestAlgorithm>
+    <!-- XcStoreBuild=true (build-store.yml, later): devServer defaults to off. -->
+    <XcStoreBuild Condition="'$(XcStoreBuild)' == ''">false</XcStoreBuild>
+  </PropertyGroup>
+
+  <!-- castcore (native/, owner: core). Produced by `pwsh native/build-uwp.ps1 -Arch x64 -Config Release`. -->
+  <PropertyGroup>
+    <XcCastcoreDir>$(MSBuildThisFileDirectory)..\native\out\uwp-x64\</XcCastcoreDir>
+    <XcHaveCastcore Condition="Exists('$(XcCastcoreDir)lib\link.txt')">true</XcHaveCastcore>
+    <XcHaveCastcore Condition="'$(XcHaveCastcore)' != 'true'">false</XcHaveCastcore>
+    <XcCastcoreLibs Condition="'$(XcHaveCastcore)' == 'true'">$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(XcCastcoreDir)lib\link.txt')), '\s+', ';'))</XcCastcoreLibs>
+  </PropertyGroup>
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)pch.pch</PrecompiledHeaderOutputFile>
+      <WarningLevel>Level3</WarningLevel>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc11</LanguageStandard_C>
+      <AdditionalOptions>%(AdditionalOptions) /bigobj /utf-8</AdditionalOptions>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)src;$(XcCastcoreDir)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;WINRT_LEAN_AND_MEAN;NOMINMAX;_WINSOCK_DEPRECATED_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(XcHaveCastcore)' == 'true'">XC_HAVE_CASTCORE=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(XcStoreBuild)' == 'true'">XC_STORE_BUILD=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <GenerateWindowsMetadata>false</GenerateWindowsMetadata>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;d3dcompiler.lib;xaudio2.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(XcHaveCastcore)' == 'true'">$(XcCastcoreLibs);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories Condition="'$(XcHaveCastcore)' == 'true'">$(XcCastcoreDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+    <!-- Shaders: src\**\NAME_vs.hlsl | NAME_ps.hlsl | NAME_cs.hlsl, entry point `main`, shader model 5.0.
+         Output: "$(GeneratedFilesDir)shaders\NAME_xx.h" with `const BYTE g_NAME_xx[]`; include it as "shaders/NAME_xx.h".
+         *.hlsli are shared includes (not compiled). No .cso is packaged. -->
+    <FxCompile>
+      <ShaderModel>5.0</ShaderModel>
+      <EntryPointName>main</EntryPointName>
+      <HeaderFileOutput>$(GeneratedFilesDir)shaders\%(Filename).h</HeaderFileOutput>
+      <VariableName>g_%(Filename)</VariableName>
+      <ObjectFileOutput />
+      <DisableOptimizations Condition="'$(Configuration)'=='Debug'">true</DisableOptimizations>
+      <EnableDebuggingInformation Condition="'$(Configuration)'=='Debug'">true</EnableDebuggingInformation>
+    </FxCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- App shell (platform) -->
+  <ItemGroup>
+    <ClInclude Include="pch.h" />
+    <ClInclude Include="App.h">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClInclude>
+    <ApplicationDefinition Include="App.xaml">
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    <ClCompile Include="pch.cpp">
+      <PrecompiledHeader>Create</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="App.cpp">
+      <DependentUpon>App.xaml</DependentUpon>
+    </ClCompile>
+    <ClCompile Include="$(GeneratedFilesDir)module.g.cpp" />
+    <Midl Include="App.idl">
+      <DependentUpon>App.xaml</DependentUpon>
+    </Midl>
+    <AppxManifest Include="Package.appxmanifest">
+      <SubType>Designer</SubType>
+    </AppxManifest>
+    <None Include="packages.config" />
+  </ItemGroup>
+
+  <!-- Everything under src\ by wildcard -->
+  <ItemGroup>
+    <Page Include="src\**\*.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <ClInclude Include="src\**\*.h" />
+    <ClCompile Include="src\**\*.cpp" />
+    <Midl Include="src\**\*.idl" />
+    <None Include="src\**\*.hlsli" />
+    <FxCompile Include="src\**\*_vs.hlsl">
+      <ShaderType>Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="src\**\*_ps.hlsl">
+      <ShaderType>Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="src\**\*_cs.hlsl">
+      <ShaderType>Compute</ShaderType>
+    </FxCompile>
+  </ItemGroup>
+  <!-- Code-behind of a XAML page = same file name next to it (src\ui\MainPage.xaml + MainPage.h/.cpp/.idl). -->
+  <ItemGroup>
+    <ClInclude Update="@(Page->'%(RelativeDir)%(Filename).h')">
+      <DependentUpon>%(Filename).xaml</DependentUpon>
+    </ClInclude>
+    <ClCompile Update="@(Page->'%(RelativeDir)%(Filename).cpp')">
+      <DependentUpon>%(Filename).xaml</DependentUpon>
+    </ClCompile>
+    <Midl Update="@(Page->'%(RelativeDir)%(Filename).idl')">
+      <DependentUpon>%(Filename).xaml</DependentUpon>
+    </Midl>
+  </ItemGroup>
+
+  <!-- Art (tools/make_assets.py) + product strings -->
+  <ItemGroup>
+    <Image Include="Assets\*.png" />
+    <PRIResource Include="Assets\Strings\**\*.resw" />
+  </ItemGroup>
+
+  <!-- Runtime DLLs of castcore (if any) next to the exe; FFmpeg's come from its NuGet .targets (ReferenceCopyLocalPaths). -->
+  <ItemGroup Condition="'$(XcHaveCastcore)' == 'true'">
+    <ReferenceCopyLocalPaths Include="$(XcCastcoreDir)bin\*.dll" />
+  </ItemGroup>
+
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.targets" Condition="Exists('packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.targets')" />
+    <Import Project="packages\FFmpegInteropX.UWP.FFmpeg.8.1.2\build\native\FFmpegInteropX.UWP.FFmpeg.targets" Condition="Exists('packages\FFmpegInteropX.UWP.FFmpeg.8.1.2\build\native\FFmpegInteropX.UWP.FFmpeg.targets')" />
+  </ImportGroup>
+
+  <!-- XAML pages under src\ get their generated *.xaml.g.h in a matching subfolder of Generated Files: add those folders. -->
+  <Target Name="XcXamlSubfolderIncludes" BeforeTargets="ClCompile">
+    <ItemGroup>
+      <_XcXamlGenDir Include="@(Page->'$(GeneratedFilesDir)%(RelativeDir)'->Distinct())" />
+      <_XcXamlGenDir Include="@(Page->'$(ProjectDir)%(RelativeDir)'->Distinct())" />
+      <ClCompile>
+        <AdditionalIncludeDirectories>%(ClCompile.AdditionalIncludeDirectories);@(_XcXamlGenDir)</AdditionalIncludeDirectories>
+      </ClCompile>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="XcBuildInfo" BeforeTargets="PrepareForBuild">
+    <Message Importance="high" Text="xbox-cast: XC_HAVE_CASTCORE=$(XcHaveCastcore) toolset=$(PlatformToolset) sdk=$(WindowsTargetPlatformVersion) store=$(XcStoreBuild)" />
+    <Message Importance="high" Condition="'$(XcHaveCastcore)' == 'true'" Text="xbox-cast: castcore libs: $(XcCastcoreLibs)" />
+  </Target>
+
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Run `nuget restore app\XboxCast.sln` (or restore in Visual Studio). The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.props')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.props'))" />
+    <Error Condition="!Exists('packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Microsoft.Windows.CppWinRT.3.0.260818.1\build\native\Microsoft.Windows.CppWinRT.targets'))" />
+    <Error Condition="!Exists('packages\FFmpegInteropX.UWP.FFmpeg.8.1.2\build\native\FFmpegInteropX.UWP.FFmpeg.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\FFmpegInteropX.UWP.FFmpeg.8.1.2\build\native\FFmpegInteropX.UWP.FFmpeg.targets'))" />
+  </Target>
+</Project>
