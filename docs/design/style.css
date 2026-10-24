@@ -1,0 +1,88 @@
+/* xbox-cast UI mockups: the visual spec the XAML matches. 1920x1080 effective px (layout scaling disabled on Xbox).
+   Tokens here are mirrored 1:1 in app/src/ui/Theme.xaml. */
+:root {
+  --bg: #07070b;
+  --text: #f5f5f7;
+  --text-2: rgba(235, 235, 245, 0.64);
+  --text-3: rgba(235, 235, 245, 0.40);
+  --fill: rgba(255, 255, 255, 0.08);       /* resting control */
+  --fill-2: rgba(255, 255, 255, 0.05);     /* resting row */
+  --panel: rgba(20, 20, 27, 0.94);         /* overlay / cards */
+  --accent: #8ea8ff;                       /* the one quiet accent */
+  --accent-fill: rgba(142, 168, 255, 0.22);
+  --accent-text: #c8d3ff;
+  --focus-bg: #f5f5f7;
+  --focus-text: #0b0b10;
+  --focus-shadow: 0 18px 44px rgba(0, 0, 0, 0.55), 0 0 36px rgba(142, 168, 255, 0.28);
+  --safe-x: 96px;                          /* 5% of 1920 */
+  --safe-y: 54px;                          /* 5% of 1080 */
+  --font: "Segoe UI", Lato, "Noto Sans", sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); color: var(--text);
+  font-family: var(--font); -webkit-font-smoothing: antialiased; }
+.screen { position: relative; width: 1920px; height: 1080px; overflow: hidden; }
+
+/* ---- Idle backdrop: three soft drifting blobs (Composition radial gradients in the app, 40-70 s loops) ---- */
+.backdrop { position: absolute; inset: 0; background: var(--bg); }
+.blob { position: absolute; border-radius: 50%; filter: blur(10px); }
+.blob.b1 { width: 1500px; height: 1500px; left: -420px; top: -620px;
+  background: radial-gradient(closest-side, rgba(52, 76, 190, 0.42), rgba(52, 76, 190, 0) 100%); }
+.blob.b2 { width: 1300px; height: 1300px; left: 980px; top: 180px;
+  background: radial-gradient(closest-side, rgba(104, 58, 168, 0.34), rgba(104, 58, 168, 0) 100%); }
+.blob.b3 { width: 1100px; height: 1100px; left: 260px; top: 520px;
+  background: radial-gradient(closest-side, rgba(24, 104, 128, 0.26), rgba(24, 104, 128, 0) 100%); }
+.vignette { position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 45%, rgba(7, 7, 11, 0) 40%, rgba(7, 7, 11, 0.75) 100%); }
+.dim { position: absolute; inset: 0; background: rgba(7, 7, 11, 0.55); }
+
+/* ---- Type ---- */
+.eyebrow { font-size: 32px; font-weight: 600; color: var(--text-2); letter-spacing: 0.01em; }
+.display { font-size: 136px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.05; }
+.title { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; }
+.body { font-size: 38px; font-weight: 500; color: var(--text-2); line-height: 1.4; }
+.small { font-size: 28px; font-weight: 500; color: var(--text-2); }
+.caption { font-size: 22px; font-weight: 700; color: var(--text-2); letter-spacing: 0.06em; text-transform: uppercase; }
+.strong { color: var(--text); }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ---- Corner status (idle) ---- */
+.corner { position: absolute; bottom: var(--safe-y); display: flex; gap: 48px; align-items: flex-end; }
+.corner.left { left: var(--safe-x); }
+.corner.right { right: var(--safe-x); }
+.kv .caption { margin-bottom: 6px; }
+.kv .v { font-size: 28px; font-weight: 600; color: var(--text-2); }
+
+/* Controller hint: keycap with a text name (no glyph icons) */
+.hint { display: inline-flex; align-items: center; gap: 14px; font-size: 26px; font-weight: 600; color: var(--text-2); }
+.key { display: inline-flex; align-items: center; justify-content: center; min-width: 48px; height: 40px; padding: 0 14px;
+  border-radius: 20px; background: rgba(255, 255, 255, 0.12); color: var(--text); font-size: 20px; font-weight: 700; }
+.hints { display: flex; gap: 40px; }
+
+/* ---- Controls ---- */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 12px; height: 72px; padding: 0 34px;
+  border-radius: 36px; background: var(--fill); color: var(--text); font-size: 28px; font-weight: 600;
+  transition: transform 250ms, background 250ms; }
+.btn.round { width: 72px; padding: 0; }
+.btn.focus { background: var(--focus-bg); color: var(--focus-text); transform: scale(1.06); box-shadow: var(--focus-shadow); }
+.btn.sel { background: var(--accent-fill); color: var(--accent-text); }
+.btn.disabled { opacity: 0.35; }
+.seg { display: inline-flex; gap: 6px; padding: 6px; border-radius: 42px; background: rgba(255, 255, 255, 0.06); }
+.seg .btn { background: transparent; height: 64px; padding: 0 30px; border-radius: 32px; }
+.seg .btn.sel { background: var(--accent-fill); }
+.seg .btn.focus { background: var(--focus-bg); color: var(--focus-text); }
+/* selected + focused: white pill keeps a small accent dot so selection stays visible under focus */
+.seg .btn.sel.focus::before { content: ""; width: 12px; height: 12px; border-radius: 6px; background: #4d66d6; }
+.nowrap { white-space: nowrap; }
+.ico { width: 26px; height: 26px; display: inline-block; }   /* stands in for Segoe MDL2 glyphs */
+.readout { min-width: 112px; text-align: center; font-size: 28px; font-weight: 600; }
+.switch { width: 60px; height: 34px; border-radius: 17px; background: rgba(255, 255, 255, 0.26); position: relative; }
+.switch::after { content: ""; position: absolute; top: 4px; left: 4px; width: 26px; height: 26px; border-radius: 13px; background: #fff; }
+.switch.on { background: var(--accent); }
+.switch.on::after { left: 30px; }
+.focus .switch { background: rgba(11, 11, 16, 0.25); }
+.focus .switch.on { background: #4d66d6; }
+
+/* ---- Spinner (ProgressRing in the app, restyled) ---- */
+.spinner { width: 64px; height: 64px; border-radius: 50%; border: 6px solid rgba(255, 255, 255, 0.12);
+  border-top-color: var(--accent); }

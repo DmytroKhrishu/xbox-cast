@@ -1,0 +1,31 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Stats</title><link rel="stylesheet" href="style.css">
+<style>
+  .stats { position: absolute; top: var(--safe-y); right: var(--safe-x); width: 470px; padding: 30px 34px 32px;
+    border-radius: 28px; background: rgba(14, 14, 20, 0.84); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07),: 0 20px 60px rgba(0,0,0,.45); }
+  .stats .caption { margin-bottom: 18px; }
+  .stats table { width: 100%; border-collapse: collapse; }
+  .stats td { font-size: 27px; font-weight: 500; padding: 7px 0; color: var(--text-2); }
+  .stats td.v { text-align: right; color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stats tr.sep td { padding: 6px 0; } .stats tr.sep td div { height: 1px; background: rgba(255,255,255,.08); }
+  .good { color: #7ee2a8 !important; }
+</style></head>
+<body><div class="screen">
+  <div id="video"></div><script src="phone.js"></script>
+  <div class="stats">
+    <div class="caption">Stats</div>
+    <table>
+      <tr><td>Latency</td><td class="v good">62 ms</td></tr>
+      <tr><td>Video</td><td class="v">H.264 · 1170×2532</td></tr>
+      <tr><td>Frame rate</td><td class="v">60 fps</td></tr>
+      <tr><td>Decode</td><td class="v">3.1 ms</td></tr>
+      <tr><td>Bitrate</td><td class="v">11.4 Mbps</td></tr>
+      <tr><td>Dropped</td><td class="v">0 frames</td></tr>
+      <tr class="sep"><td colspan="2"><div></div></td></tr>
+      <tr><td>Audio</td><td class="v">AAC-ELD · 44.1 kHz</td></tr>
+      <tr><td>Audio delay</td><td class="v">+0 ms</td></tr>
+      <tr class="sep"><td colspan="2"><div></div></td></tr>
+      <tr><td>View</td><td class="v">Auto (fits)</td></tr>
+    </table>
+  </div>
+</div></body></html>

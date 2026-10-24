@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>PIN</title><link rel="stylesheet" href="style.css">
+<style>
+  .center { position: absolute; left: var(--safe-x); right: var(--safe-x); top: 290px; text-align: center; }
+  .digits { display: flex; justify-content: center; gap: 28px; margin: 56px 0 52px; }
+  .digit { width: 168px; height: 212px; border-radius: 32px; background: rgba(255,255,255,.08);
+    display: flex; align-items: center; justify-content: center; font-size: 132px; font-weight: 600;
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.06); }
+</style></head>
+<body><div class="screen">
+  <div class="backdrop"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="vignette"></div></div>
+  <div class="dim"></div>
+  <div class="center">
+    <div class="title">Enter this code on your iPhone</div>
+    <div class="digits tnum"><div class="digit">4</div><div class="digit">7</div><div class="digit">1</div><div class="digit">9</div></div>
+    <div class="body">Your iPhone asks for it after you choose this screen in Screen Mirroring.</div>
+  </div>
+  <div class="corner right"><span class="hint"><span class="key">B</span>Cancel</span></div>
+</div></body></html>

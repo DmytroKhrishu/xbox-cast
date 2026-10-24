@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mirroring overlay</title><link rel="stylesheet" href="style.css">
+<style>
+  .scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 520px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.55) 60%, rgba(0,0,0,.7) 100%); }
+  .overlay { position: absolute; left: var(--safe-x); right: var(--safe-x); bottom: var(--safe-y);
+    padding: 34px 40px 36px; border-radius: 36px; background: var(--panel);
+    box-shadow: 0 30px 80px rgba(0,0,0,.5); backdrop-filter: blur(30px); }
+  .top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+  .who { display: flex; align-items: baseline; gap: 20px; }
+  .who .name { font-size: 40px; font-weight: 600; }
+  .row { display: flex; align-items: flex-end; gap: 36px; }
+  .group .caption { margin: 0 0 12px 4px; }
+  .stepper { display: flex; align-items: center; gap: 4px; }
+  .spacer { flex: 1; }
+  /* minus/plus drawn as bars: stand-ins for Segoe MDL2 E738 / E710 */
+  .minus, .plus { position: relative; width: 24px; height: 24px; }
+  .minus::before, .plus::before, .plus::after { content: ""; position: absolute; background: currentColor; border-radius: 2px; }
+  .minus::before, .plus::before { left: 0; right: 0; top: 10px; height: 4px; }
+  .plus::after { top: 0; bottom: 0; left: 10px; width: 4px; }
+</style></head>
+<body><div class="screen">
+  <div id="video"></div><script src="phone.js"></script>
+  <div class="scrim"></div>
+
+  <div class="overlay">
+    <div class="top">
+      <div class="who"><span class="name">iPhone</span><span class="small">Screen Mirroring</span></div>
+      <div class="hints">
+        <span class="hint"><span class="key">LB</span><span class="key">RB</span>View</span>
+        <span class="hint"><span class="key">LT</span><span class="key">RT</span>Zoom</span>
+        <span class="hint"><span class="key">Hold B</span>Disconnect</span>
+      </div>
+    </div>
+    <div class="row">
+      <div class="group"><div class="caption">View</div>
+        <div class="seg">
+          <span class="btn">Fit</span><span class="btn">Fill</span><span class="btn">Zoom</span><span class="btn sel focus">Auto</span>
+        </div>
+      </div>
+      <div class="group"><div class="caption">Zoom</div>
+        <div class="stepper"><span class="btn round disabled"><span class="minus"></span></span>
+          <span class="readout tnum">1.0×</span><span class="btn round"><span class="plus"></span></span></div>
+      </div>
+      <div class="group"><div class="caption">Audio delay</div>
+        <div class="stepper"><span class="btn round"><span class="minus"></span></span>
+          <span class="readout tnum">0 ms</span><span class="btn round"><span class="plus"></span></span></div>
+      </div>
+      <div class="spacer"></div>
+      <div class="group"><span class="btn">Stats<span class="switch"></span></span></div>
+      <div class="group"><span class="btn">Disconnect</span></div>
+    </div>
+  </div>
+</div></body></html>
