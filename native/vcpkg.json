@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "castcore",
+  "version-string": "0.1",
+  "description": "xbox-cast AirPlay receiver core (UWP build dependencies)",
+  "license": "GPL-3.0-or-later",
+  "dependencies": [
+    "openssl",
+    "libplist"
+  ]
+}
