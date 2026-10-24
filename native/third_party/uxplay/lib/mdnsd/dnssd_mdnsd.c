@@ -68,7 +68,10 @@ static void dnssd_make_host_name(char *dst, size_t dst_len)
     }
     host[sizeof(host) - 1] = '\0';
     dnssd_sanitize_label(host);
-    snprintf(dst, dst_len, "%s.local", host);
+    /* xbox-cast: advertise "<host>-xc.local", never the machine's own "<host>.local": the console's
+       (or avahi's) own responder already answers for that name, and two responders claiming one
+       name make iOS drop the record. (idea from github.com/vproHacks/screen-mirror-xbox, GPL-3.0) */
+    snprintf(dst, dst_len, "%s-xc.local", host);
 }
 
 static int dnssd_prepare_names(dnssd_private_t *dnssd, dnssd_t *dnssd_public)
@@ -284,6 +287,29 @@ dnssd_register_airplay(dnssd_t *dnssd_public, unsigned short port)
     }
 
     return ret;
+}
+
+/* xbox-cast: build both TXT records without starting the responder, so an application that
+   advertises through the OS DNS-SD API (castcore's mdns_publish callback) publishes exactly the
+   records UxPlay would, and GET /info (qualifier txtAirPlay) can return them. */
+int
+dnssd_prepare_txt(dnssd_t *dnssd_public)
+{
+    assert(dnssd_public);
+    assert(dnssd_public->dnssd_private);
+    if (dnssd_build_raop_txt(dnssd_public) || dnssd_build_airplay_txt(dnssd_public)) {
+        return -1;
+    }
+    return 0;
+}
+
+/* xbox-cast: the host name the builtin responder answers A queries for ("<host>-xc.local") */
+const char *
+dnssd_get_host_name(dnssd_t *dnssd_public)
+{
+    assert(dnssd_public);
+    assert(dnssd_public->dnssd_private);
+    return ((dnssd_private_t *) dnssd_public->dnssd_private)->host_name;
 }
 
 const char *

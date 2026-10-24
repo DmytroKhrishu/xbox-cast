@@ -73,6 +73,9 @@ DNSSD_API const char *dnssd_get_hw_addr(dnssd_t *dnssd, int *length);
 DNSSD_API void dnssd_set_airplay_features(dnssd_t *dnssd, int bit, int val);
 DNSSD_API uint64_t dnssd_get_airplay_features(dnssd_t *dnssd);
 DNSSD_API void dnssd_set_pk(dnssd_t *dnssd, char * pk_str);
+/* xbox-cast: additions in lib/mdnsd/dnssd_mdnsd.c */
+DNSSD_API int dnssd_prepare_txt(dnssd_t *dnssd);
+DNSSD_API const char *dnssd_get_host_name(dnssd_t *dnssd);
 
 /* An external dns_sd.h library (Avahi's compat layer, Bonjour) hands each
    registered service a socket that the application must service with

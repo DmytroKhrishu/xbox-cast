@@ -591,7 +591,14 @@ static void init_random()
 #endif
     unsigned char buff[64];
 
-#ifdef WIN32
+#if defined(WIN32) && defined(XC_UWP)
+        /* xbox-cast: legacy CryptoAPI is not available to UWP apps; OpenSSL seeds itself from
+           BCryptGenRandom (adapted from github.com/vproHacks/screen-mirror-xbox, GPL-3.0) */
+        (void) wctx;
+        if (RAND_bytes(buff, sizeof(buff)) == 1) {
+            g_initialized = 1;
+        }
+#elif defined(WIN32)
         CryptAcquireContext(&wctx, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT);
         CryptGenRandom(wctx, sizeof(buff), (BYTE*) buff);
         CryptReleaseContext(wctx, 0);

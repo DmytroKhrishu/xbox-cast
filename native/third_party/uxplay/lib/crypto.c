@@ -35,6 +35,54 @@
 
 #include "utils.h"
 
+/* xbox-cast: the keyfile is read/written through memory BIOs, so this also works with OpenSSL builds
+   configured with OPENSSL_NO_STDIO (vcpkg's UWP triplets), which lack BIO_new_fp().
+   (adapted from github.com/vproHacks/screen-mirror-xbox, GPL-3.0) */
+#include <stdio.h>
+#define KEYFILE_MAX_SIZE 8192
+
+static EVP_PKEY *read_private_key_file(const char *keyfile) {
+    EVP_PKEY *pkey = NULL;
+    char *buf = NULL;
+    FILE *file = fopen(keyfile, "rb");
+    if (!file) {
+        return NULL;
+    }
+    buf = (char *) malloc(KEYFILE_MAX_SIZE);
+    if (buf) {
+        size_t len = fread(buf, 1, KEYFILE_MAX_SIZE, file);
+        if (len > 0) {
+            BIO *bp = BIO_new_mem_buf(buf, (int) len);
+            if (bp) {
+                pkey = PEM_read_bio_PrivateKey(bp, NULL, NULL, NULL);
+                BIO_free(bp);
+            }
+        }
+        free(buf);
+    }
+    fclose(file);
+    return pkey;
+}
+
+static int write_private_key_file(const char *keyfile, EVP_PKEY *pkey) {
+    int ret = 0;
+    BIO *bp = BIO_new(BIO_s_mem());
+    if (!bp) {
+        return 0;
+    }
+    if (PEM_write_bio_PrivateKey(bp, pkey, NULL, NULL, 0, NULL, NULL)) {
+        char *data = NULL;
+        long len = BIO_get_mem_data(bp, &data);
+        FILE *file = fopen(keyfile, "wb");
+        if (file) {
+            ret = (len > 0 && fwrite(data, 1, (size_t) len, file) == (size_t) len);
+            fclose(file);
+        }
+    }
+    BIO_free(bp);
+    return ret;
+}
+
 #define SALT_PK "UxPlay-Persistent-Not-Secure-Public-Key"
 
 struct aes_ctx_s {
@@ -350,8 +398,6 @@ struct ed25519_key_s {
 
 ed25519_key_t *ed25519_key_generate(const char *device_id, const char *keyfile, int *result) {
     EVP_PKEY_CTX *pctx = NULL;
-    BIO *bp = NULL;
-    FILE *file = NULL;
     bool new_pk = false;
     bool use_keyfile = strlen(keyfile);
 
@@ -361,16 +407,9 @@ ed25519_key_t *ed25519_key_generate(const char *device_id, const char *keyfile, 
     assert(key);
    
     if (use_keyfile) {
-        file = fopen(keyfile, "r");
-        if (file) {
-            bp = BIO_new_fp(file, BIO_NOCLOSE);
-            key->pkey = PEM_read_PrivateKey(file, NULL, NULL, NULL);
-            BIO_free(bp);
-            fclose(file);
-            if (!key->pkey) {
-                new_pk = true;
-            }
-        } else {
+        /* xbox-cast: memory BIO instead of BIO_new_fp */
+        key->pkey = read_private_key_file(keyfile);
+        if (!key->pkey) {
             new_pk = true;
         }
     } else {
@@ -397,15 +436,9 @@ ed25519_key_t *ed25519_key_generate(const char *device_id, const char *keyfile, 
             handle_error(__func__);
         }
         EVP_PKEY_CTX_free(pctx);
-        if (use_keyfile) {
-            file = fopen(keyfile, "w");
-            if (file) {
-                bp = BIO_new_fp(file, BIO_NOCLOSE);
-                PEM_write_bio_PrivateKey(bp, key->pkey, NULL, NULL, 0, NULL, NULL);
-                BIO_free(bp);
-                fclose(file);
-                *result = 1;
-            }
+        /* xbox-cast: memory BIO instead of BIO_new_fp */
+        if (use_keyfile && write_private_key_file(keyfile, key->pkey)) {
+            *result = 1;
         }
     }
     return key;

@@ -757,6 +757,12 @@ raop_handler_setup(raop_conn_t *conn,
         plist_get_string_val(req_model_node, &model);  
         plist_t req_name_node = plist_dict_get_item(req_root_node, "name");
         plist_get_string_val(req_name_node, &name);  
+        /* xbox-cast: tell the application which address the client connects from */
+        if (raop->callbacks.report_client_address) {
+            char ipaddr[64] = { '\0' };
+            utils_ipaddress_to_string(conn->remotelen, conn->remote, conn->zone_id, ipaddr, (int) sizeof(ipaddr));
+            raop->callbacks.report_client_address(raop->callbacks.cls, ipaddr);
+        }
         if (raop->callbacks.report_client_request) {
             raop->callbacks.report_client_request(raop->callbacks.cls, deviceID, model, name, &admit_client);
         }

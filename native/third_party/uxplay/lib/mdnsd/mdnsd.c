@@ -371,24 +371,50 @@ static uint32_t mdns_get_default_ipv4(void)
         PIP_ADAPTER_ADDRESSES pCurr = pAddresses;
         while (pCurr) {
             // Precise target filters to bypass the Hyper-V virtual adapter loopback capture
+            /* xbox-cast: on Xbox the real Wi-Fi/Ethernet adapters are named "Durango Virtual Network ...
+               Adapter": do not reject those. Also take the first IPv4 unicast address, not just the first
+               entry. (fix from github.com/vproHacks/screen-mirror-xbox, GPL-3.0) */
             if (pCurr->OperStatus == IfOperStatusUp && 
                 pCurr->IfType != IF_TYPE_SOFTWARE_LOOPBACK &&
                 pCurr->FirstGatewayAddress != NULL && 
                 wcsstr(pCurr->Description, L"Hyper-V") == NULL &&
-                wcsstr(pCurr->Description, L"Virtual") == NULL &&
+                (wcsstr(pCurr->Description, L"Virtual") == NULL || wcsstr(pCurr->Description, L"Durango") != NULL) &&
                 wcsstr(pCurr->Description, L"WSL") == NULL &&
                 wcsstr(pCurr->Description, L"vEthernet") == NULL) {
-                
-                if (pCurr->FirstUnicastAddress != NULL) {
-                    struct sockaddr_in *sockaddr_ipv4 = (struct sockaddr_in *)pCurr->FirstUnicastAddress->Address.lpSockaddr;
-                    addr = sockaddr_ipv4->sin_addr.s_addr;
-                    break; 
+                PIP_ADAPTER_UNICAST_ADDRESS uni = pCurr->FirstUnicastAddress;
+                for (; uni != NULL; uni = uni->Next) {
+                    struct sockaddr_in *sockaddr_ipv4 = (struct sockaddr_in *)uni->Address.lpSockaddr;
+                    if (sockaddr_ipv4->sin_family == AF_INET && sockaddr_ipv4->sin_addr.s_addr != 0) {
+                        addr = sockaddr_ipv4->sin_addr.s_addr;
+                        break;
+                    }
+                }
+                if (addr) {
+                    break;
                 }
             }
             pCurr = pCurr->Next;
         }
     }
     free(pAddresses);
+    /* xbox-cast: fallback when no adapter matched: let the routing table pick the interface */
+    if (!addr) {
+        SOCKET fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if (fd != INVALID_SOCKET) {
+            struct sockaddr_in remote;
+            struct sockaddr_in local;
+            int local_len = sizeof(local);
+            memset(&remote, 0, sizeof(remote));
+            remote.sin_family = AF_INET;
+            remote.sin_port = htons(MDNS_PORT);
+            inet_pton(AF_INET, MDNS_ADDR4, &remote.sin_addr);
+            if (connect(fd, (struct sockaddr *) &remote, sizeof(remote)) == 0 &&
+                getsockname(fd, (struct sockaddr *) &local, &local_len) == 0) {
+                addr = local.sin_addr.s_addr;
+            }
+            closesocket(fd);
+        }
+    }
 #else    
     int fd;
     struct sockaddr_in remote;
@@ -1097,14 +1123,18 @@ void mdnsd_stop(mdnsd_t *mdnsd)
     }
     MUTEX_UNLOCK(mdnsd->mutex);
 
+    /* xbox-cast: join the thread BEFORE closing its sockets. Closing a socket another thread is
+       blocked on in select() crashes with 0xC0000008 (invalid handle) on Xbox when the app is
+       suspended. The thread wakes within 250 ms (select timeout) and sees running == 0.
+       (fix from github.com/vproHacks/screen-mirror-xbox / github.com/CansDE/airplay-xbox, GPL-3.0) */
+    if (thread) {
+        THREAD_JOIN(thread);
+    }
     if (fd4 != -1) {
         CLOSESOCKET(fd4);
     }
     if (fd6 != -1) {
         CLOSESOCKET(fd6);
-    }
-    if (thread) {
-        THREAD_JOIN(thread);
     }
 }
 

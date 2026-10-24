@@ -22,7 +22,22 @@ Not taken at all: `uxplay.cpp`, `renderers/` (GStreamer), docs, Bluetooth LE bea
 Every change is marked `/* xbox-cast: ... */` in the source. List: see the section below (kept in sync with
 `git log -- native/third_party/uxplay`).
 
-(none yet: this commit is the pristine upstream tree)
+| File | Patch | Why |
+|---|---|---|
+| `lib/mdnsd/mdnsd.c` | accept adapters whose description contains "Virtual" when it is "Durango Virtual Network ... Adapter"; fallback interface when none matched | Xbox exposes its real NICs that way (fix from screen-mirror-xbox `docs/uxplay-lib-changes.patch`) |
+| `lib/mdnsd/mdnsd.c` | join the responder thread before closing its sockets | closing a socket under a blocked `select()` crashes with 0xC0000008 on UWP suspend (screen-mirror-xbox) |
+| `lib/mdnsd/dnssd_mdnsd.c` | advertise host `<host>-xc.local`, never `<host>.local` | the console/OS already owns its own name; a second responder for it causes conflicts (screen-mirror-xbox / airplay-xbox) |
+| `lib/mdnsd/dnssd_mdnsd.c`, `lib/dnssd.h` | `dnssd_build_records()` (TXT records without starting the responder), `dnssd_get_host_name()` | castcore's `mdns_publish` mode hands the exact same TXT records to the app |
+| `lib/crypto.c` | ed25519 key file read/written through memory BIOs | OpenSSL's `BIO_new_fp` needs the applink shim on Windows builds |
+| `lib/srp.c` | no CryptoAPI seeding on Windows | `CryptAcquireContext` is not available to UWP apps; OpenSSL 3 seeds itself (BCryptGenRandom) |
+| `lib/raop_ntp.c` | comment only: kernel RX timestamps not used on Windows | documents the UWP limitation |
+| `lib/raop_rtp_mirror.c` | `IPPROTO_TCP` guard; Winsock `SO_RCVTIMEO` as DWORD ms | Winsock differences |
+| `lib/raop_rtp_mirror.c` | report the size of every codec packet (not only the first) | castcore emits `on_video_format` on rotation |
+| `lib/raop.h`, `lib/raop_handlers.h` | optional `report_client_address` callback | `on_client_connected` gets the client address |
+| `lib/fairplay_playfair.c` | bound-check the FairPlay message index | out-of-bounds read on malformed fp-setup |
+| `lib/compat.h` | MSVC >= 2015 uses the real `snprintf` | `_snprintf` does not NUL-terminate |
+
+Generate the exact diff with `git diff 6702e29 -- native/third_party/uxplay` (6702e29 = pristine import).
 
 ## How to bump
 See `docs/core.md`, "Bumping UxPlay".

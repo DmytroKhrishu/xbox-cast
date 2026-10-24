@@ -50,7 +50,8 @@
 #define SEC SECOND_IN_NSECS
 
 /* for MacOS, where SOL_TCP and TCP_KEEPIDLE are not defined */
-#if !defined(SOL_TCP) && defined(IPPROTO_TCP)
+/* xbox-cast: on Windows IPPROTO_TCP is an enum constant, not a macro */
+#if !defined(SOL_TCP) && (defined(IPPROTO_TCP) || defined(_WIN32))
 #define SOL_TCP IPPROTO_TCP
 #endif
 #if !defined(TCP_KEEPIDLE) && defined(TCP_KEEPALIVE)
@@ -251,9 +252,15 @@ raop_rtp_mirror_thread(void *arg)
             }
 
             // We're calling recv for a certain amount of data, so we need a timeout
+#ifdef _WIN32
+            /* xbox-cast: Winsock's SO_RCVTIMEO takes a DWORD in ms; the struct timeval below reads as
+               tv_sec = 0 = "no timeout" there, so recv() blocked forever and raop_rtp_mirror_stop() hung */
+            DWORD tv = 5;
+#else
             struct timeval tv;
             tv.tv_sec = 0;
             tv.tv_usec = 5000;
+#endif
             if (setsockopt(stream_fd, SOL_SOCKET, SO_RCVTIMEO, CAST &tv, sizeof(tv)) < 0) {
                 int sock_err = SOCKET_GET_ERROR();
                 logger_log(raop_rtp_mirror->logger, LOGGER_ERR,
@@ -632,6 +639,12 @@ raop_rtp_mirror_thread(void *arg)
                         /* drop connection */
                         conn_reset = true;
                         break;
+                    } else {
+                        /* xbox-cast: report the size of every later codec packet too (rotation) */
+                        raop_rtp_mirror->callbacks.video_set_codec_and_size(raop_rtp_mirror->callbacks.cls, codec,
+                                                                            (unsigned short) width_source, (unsigned short) height_source,
+                                                                            (unsigned short) x_offset, (unsigned short) y_offset,
+                                                                            (unsigned short) width, (unsigned short) height);
                     }
                     unsigned char vps_start_code[] = { 0xa0, 0x00, 0x01, 0x00 };
                     unsigned char sps_start_code[] = { 0xa1, 0x00, 0x01, 0x00 };
@@ -721,6 +734,12 @@ raop_rtp_mirror_thread(void *arg)
                         /* drop connection */
                         conn_reset = true;
                         break;
+                    } else {
+                        /* xbox-cast: report the size of every later codec packet too (rotation) */
+                        raop_rtp_mirror->callbacks.video_set_codec_and_size(raop_rtp_mirror->callbacks.cls, codec,
+                                                                            (unsigned short) width_source, (unsigned short) height_source,
+                                                                            (unsigned short) x_offset, (unsigned short) y_offset,
+                                                                            (unsigned short) width, (unsigned short) height);
                     }
                     short sps_size = byteutils_get_short_be(payload,6);
                     unsigned char *sequence_parameter_set = payload + 8;

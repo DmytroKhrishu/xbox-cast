@@ -56,6 +56,11 @@ fairplay_setup(fairplay_t *fp, const unsigned char req[16], unsigned char res[14
     }
 
     int mode = req[14];
+    /* xbox-cast: only four reply messages exist; reject instead of reading past the table
+       (fix from github.com/vproHacks/screen-mirror-xbox, GPL-3.0) */
+    if (mode < 0 || mode > 3) {
+        return -1;
+    }
     memcpy(res, reply_message[mode], 142);
     fp->keymsglen = 0;
     return 0;

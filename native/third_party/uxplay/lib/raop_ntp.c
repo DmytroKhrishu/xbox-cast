@@ -110,6 +110,12 @@ struct raop_ntp_s {
 
 /* code for recv with kernel timestamp */
 
+/* xbox-cast: kernel receive timestamps (WSAIoctl SIO_TIMESTAMPING, GetIfEntry2) are not used in the
+   UWP build (adapted from github.com/vproHacks/screen-mirror-xbox, GPL-3.0) */
+#ifdef XC_UWP
+#undef SIO_TIMESTAMPING
+#endif
+
 #ifdef _WIN32
 #ifndef WSA_CMSG_SPACE
 #define WSA_CMSG_SPACE(len) (sizeof(struct cmsghdr) + (len))

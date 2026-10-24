@@ -25,7 +25,8 @@
 #include <iphlpapi.h>
 #include <mswsock.h>
 #include <windows.h>
-#ifndef snprintf
+/* xbox-cast: MSVC >= 2015 has a conforming snprintf; _snprintf does not null-terminate */
+#if defined(_MSC_VER) && _MSC_VER < 1900 && !defined(snprintf)
 #define snprintf _snprintf
 #endif
 #else
