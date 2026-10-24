@@ -11,8 +11,8 @@ Owner: ui. Code: `app/src/ui/`. Visual spec: `docs/design/` (HTML mockups, rende
 | `Input.h` | VirtualKey and `/cmd` key names → logical `xcui::Key` |
 | `Anim.h/.cpp` | fade/slide helpers (250–350 ms, cubic ease-out), spinner |
 
-`XC_UI_WIRED` in `Bridge.cpp` is 0 until the bridge is adapted to the real platform/media headers. With 0 the app runs
-the UI standalone: settings read/write LocalSettings directly with the contract keys, no receiver, no video.
+`Bridge.cpp` is wired to platform's `Settings`, `ReceiverHost` and `Diag`. Media is picked up with
+`__has_include("media/MediaPipeline.h")`: until that header lands the UI runs without video (media calls only log).
 
 ## Screens and states
 One page, stacked layers, top-most owns input: **PIN > Settings > Overlay > Mirroring > Idle** (see controller-ux).
@@ -85,16 +85,15 @@ Log lines to assert on (tag `ui`): `key <K> down layer=<idle|connecting|mirrorin
 `toast <title>`, `hold B -> disconnect`, `network ip=<ip|none>`, `backdrop on|off`.
 
 ## Requests to platform
-1. ReceiverHost: a `Restart()` (or documented Stop/Start being safe at any time from the UI thread) for the
-   restart-on-idle settings; `State()` getter; the events listed in contract §3 with the client name in `Connected`.
-2. Settings: `Changed` should carry the key so the UI refreshes only what changed (it works without, just re-reads all).
-3. Diag: `Diag::Command` raises the raw `/cmd` JSON body (string). The UI parses `key`, `hold`, `viewMode`, `zoom`,
-   `setting`, `disconnect`; platform does not need to interpret them. `GET /status` can then include the UI layer if
-   you expose a hook (`MainPage` logs it on every key anyway).
-4. App: navigate the root Frame to `XboxCast.MainPage` and do not set focus elsewhere; the page focuses itself.
+None blocking. Already covered by what landed: ReceiverHost restarts itself on receiver keys (debounced 300 ms),
+`Settings::Changed` carries the key, `Diag::Command` forwards the raw `/cmd` body. Nice to have: a public generic
+`Settings::Get(key)` (the bridge reads through `ToJson()` today, about 14 LocalSettings reads per lookup).
 
 ## Requests to media
-1. `MediaPipeline::ResetPan()` (centre) or document that `Pan` with a large negative delta clamps, so the UI can
-   centre the view on Y and on a new session. The bridge has `ResetPan()` ready for it.
-2. `Stats()` fields in a form the stats panel can show: latency ms, decoded/rendered fps, decode ms, dropped frames,
-   codec + coded size, current effective mode (for Auto: whether it ended up filling or fitting).
+1. `MediaPipeline::ResetPan()` (centre). Until then the bridge centres with `Pan(-10,-10)` then `Pan(0.5,0.5)`, relying
+   on Pan being clamped to the content (contract says "clamped to content").
+2. Register a `media` status provider (`Diag::SetStatusProvider("media", ...)`): the stats panel shows its fields next
+   to castcore's on_stats JSON. Useful: latency ms, decoded/rendered fps, decode ms, dropped frames, codec + size,
+   effective mode for Auto.
+3. `MediaPipeline` must be default-constructible; the bridge creates it on page load, calls `Attach(VideoPanel)` and
+   `ReceiverHost::SetSinks(p, p)`, and `Stop()` when a session ends.
