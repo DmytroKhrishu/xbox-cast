@@ -93,7 +93,7 @@ def main():
     n = 0
     for name, (w, h) in TILES.items():
         for sc in SCALES:
-            sw, sh = round(w * sc / 100), round(h * sc / 100)
+            sw, sh = (w * sc + 50) // 100, (h * sc + 50) // 100   # round half up, like the packaging validator
             (OUT / f'{name}.scale-{sc}.png').write_bytes(render(sw, sh))
             n += 1
     for t in TARGET_SIZES:

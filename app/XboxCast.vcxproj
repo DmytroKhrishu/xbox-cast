@@ -38,8 +38,9 @@
   </ItemGroup>
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
-    <!-- v143 (VS 2022 C++ UWP tools, component group Microsoft.VisualStudio.ComponentGroup.UWP.VC). Override with
-         /p:PlatformToolset=... if your Visual Studio has a newer toolset with UWP support. -->
+    <!-- PlatformToolset: Microsoft.Cpp.Default.props picks the installed VS default (v145 on VS 2026, as on CI; v143 on
+         VS 2022). Both need the C++ UWP tools (Microsoft.VisualStudio.ComponentGroup.UWP.VC). Override with
+         /p:PlatformToolset=... if needed. -->
     <PlatformToolset Condition="'$(PlatformToolset)' == ''">v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
