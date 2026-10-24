@@ -39,6 +39,13 @@ The product name is not final: the display name lives only in `app/Assets/String
 
 A Microsoft Store build (`build-store.yml`, Store identity from variables, `.msixupload`) is not there yet.
 
+### Capabilities
+`internetClient`, `internetClientServer`, `privateNetworkClientServer` (AirPlay listens on the LAN), and the restricted
+capability **`hevcPlayback`** (`rescap:`). On Xbox it unlocks HEVC hardware decode, the larger memory budget and 4K
+output; in exchange the app is suspended when a game launches and there is no background audio (owner decision,
+`docs/decisions.md`). Sideloading needs nothing extra. A Store submission needs a one-time justification for it in Partner
+Center (e.g. "HEVC hardware decoding of mirrored 4K screen content from iOS devices").
+
 ### Signing certificate
 The certificate's subject must equal the manifest's `Publisher` (`CN=XboxCastDev`; the workflow checks it). Make one
 once and keep the `.pfx` backed up: a new key means no in-place updates (uninstall first).
