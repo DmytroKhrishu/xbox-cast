@@ -3,8 +3,8 @@
   docs/contract.md section 2:
 
       native/out/uwp-<arch>/include/castcore.h
-      native/out/uwp-<arch>/lib/castcore.lib + libcrypto.lib + plist-2.0.lib
-      native/out/uwp-<arch>/lib/link.txt        (one lib per line: what the app links)
+      native/out/uwp-<arch>/lib/castcore.lib    (castcore + UxPlay + OpenSSL libcrypto + libplist, one static lib)
+      native/out/uwp-<arch>/lib/link.txt        ("castcore.lib": system libs come via #pragma comment)
       native/out/uwp-<arch>/bin/                (no runtime DLLs: everything is static)
       native/out/uwp-<arch>/licenses/           (OpenSSL / libplist copyright files)
 
@@ -114,27 +114,39 @@ $depLib  = if ($Config -eq 'Debug') { Join-Path $depRoot 'debug\lib' } else { Jo
 $lib = Join-Path $prefix 'lib'
 New-Item -ItemType Directory -Force (Join-Path $prefix 'bin'), (Join-Path $prefix 'licenses') | Out-Null
 
-$deps = @('libcrypto.lib', 'plist-2.0.lib')
-foreach ($d in $deps) {
+# One self-contained castcore.lib: castcore + UxPlay + OpenSSL libcrypto + libplist. The system import libraries come
+# from #pragma comment(lib) in castcore.c, so link.txt is the single line "castcore.lib".
+$deps = @()
+foreach ($d in @('libcrypto.lib', 'plist-2.0.lib')) {
     $src = Join-Path $depLib $d
     if (-not (Test-Path $src)) { throw "expected vcpkg library $src not found (contents: $((Get-ChildItem $depLib -Name) -join ', '))" }
-    Copy-Item $src $lib
+    $deps += $src
 }
+$own = Join-Path $lib 'castcore.lib'
+$raw = Join-Path $build 'castcore-only.lib'
+Move-Item -Force $own $raw
+Invoke-Checked 'merge castcore + libcrypto + libplist into castcore.lib' { lib.exe /nologo /ignore:4006 "/OUT:$own" $raw @deps }
 foreach ($p in @('openssl', 'libplist')) {
     $c = Join-Path $depRoot "share\$p\copyright"
     if (Test-Path $c) { Copy-Item $c (Join-Path $prefix "licenses\$p.txt") }
 }
 Copy-Item (Join-Path $native 'third_party\uxplay\LICENSE') (Join-Path $prefix 'licenses\uxplay-GPL-3.0.txt')
 
-# castcore first, then its static dependencies, then the Windows import libraries they need
-$linkLibs = @('castcore.lib') + $deps + @('ws2_32.lib', 'iphlpapi.lib', 'bcrypt.lib', 'crypt32.lib')
-Set-Content -Path (Join-Path $lib 'link.txt') -Value $linkLibs -Encoding ascii
+Set-Content -Path (Join-Path $lib 'link.txt') -Value 'castcore.lib' -Encoding ascii
 
 if (-not (Test-Path (Join-Path $prefix 'include\castcore.h'))) { throw "install did not produce include/castcore.h" }
 $check = Get-ChildItem $build -Recurse -Filter 'castcore_linkcheck.dll' | Select-Object -First 1
 if (-not $check) { throw "castcore_linkcheck.dll was not built" }
 Write-Host "UWP link check DLL: $($check.FullName) ($([math]::Round($check.Length / 1KB)) KB)"
-& dumpbin /nologo /dependents $check.FullName | Select-String '\.dll' | ForEach-Object { "  imports $($_.Line.Trim())" }
+& dumpbin /nologo /dependents $check.FullName | Select-String '\.dll$' | ForEach-Object { "  imports $($_.Line.Trim())" }
+
+# Link the same object again against nothing but the installed castcore.lib, the way the app consumes link.txt
+$obj = Get-ChildItem $build -Recurse -Filter 'linkcheck_uwp*.obj' | Select-Object -First 1
+if (-not $obj) { throw "linkcheck_uwp.c.obj not found" }
+$consumer = Join-Path $build 'consumer_check.dll'
+Invoke-Checked 'link a /APPCONTAINER DLL against the installed castcore.lib alone' {
+    link.exe /nologo /DLL /APPCONTAINER /MANIFEST:NO "/OUT:$consumer" $obj.FullName (Join-Path $lib 'castcore.lib') WindowsApp.lib
+}
 
 Write-Host "==> castcore for UWP $Arch ($Config) installed in $prefix"
 Get-ChildItem -Recurse $prefix | Where-Object { -not $_.PSIsContainer } |

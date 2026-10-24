@@ -31,19 +31,12 @@ for hostrx and the tests). The UWP script finds Visual Studio with vswhere, take
 `x64-uwp-static-md` triplet (static libs, dynamic CRT `/MD` as UWP requires), configures CMake with
 `CMAKE_SYSTEM_NAME=WindowsStore`, builds castcore plus `castcore_linkcheck.dll` (a DLL linked with `/APPCONTAINER`
 against the whole public API, so an unresolved symbol or a non-app-partition import fails in the core build, not in
-the app build) and installs. `link.txt`:
-
-```
-castcore.lib
-libcrypto.lib
-plist-2.0.lib
-ws2_32.lib
-iphlpapi.lib
-bcrypt.lib
-crypt32.lib
-```
-
-No runtime DLLs: `bin/` is empty. CI: `.github/workflows/core.yml` (`linux` job: build + `ctest`; `uwp` job: the
+the app build) and installs. `lib/castcore.lib` is self-contained: castcore + UxPlay + OpenSSL libcrypto + libplist
+merged with `lib.exe`, and the system import libraries (`ws2_32 iphlpapi bcrypt crypt32`) are recorded in it with
+`#pragma comment(lib)`. So `link.txt` is the single line `castcore.lib`, and the script re-links the link-check
+object against that file alone (plus `WindowsApp.lib`, `/APPCONTAINER`) to prove the app needs nothing else.
+(A multi-line `link.txt` reached link.exe as one file name `a.lib;b.lib;...` through the app project's property
+function, run 40139956250; a single entry sidesteps that.) No runtime DLLs: `bin/` is empty. CI: `.github/workflows/core.yml` (`linux` job: build + `ctest`; `uwp` job: the
 script above, vcpkg binary cache in `actions/cache`, artifact `castcore-uwp-x64`).
 
 MSVC compiles UxPlay as C11 with `src/compat/msvc/` (a pthread subset on SRW locks / condition variables, `usleep`,

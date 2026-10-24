@@ -23,6 +23,15 @@
 
 #include "h264_sps.h"
 
+#ifdef _MSC_VER
+/* System import libraries castcore.lib needs (UxPlay sockets/adapters, OpenSSL's RNG and cert store). Recorded in
+ * the .lib, so the app links only castcore.lib (build-uwp.ps1 merges OpenSSL + libplist into it). */
+#pragma comment(lib, "ws2_32.lib")
+#pragma comment(lib, "iphlpapi.lib")
+#pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "crypt32.lib")
+#endif
+
 #define XC_VERSION_STRING "castcore 0.1 (uxplay master-116e390)"
 #define XC_DEFAULT_PORT 7000
 #define XC_MISSED_FEEDBACK_LIMIT 15   /* seconds without a client heartbeat before the session is dropped (UxPlay default) */
