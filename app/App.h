@@ -15,7 +15,12 @@ namespace winrt::XboxCast::implementation
         void ApplyWindowRules();
         void StartServices();
         void StopServices();
+        void SetDisplayActive(bool active);   // UI thread
 
         bool m_windowRulesApplied = false;
+        bool m_servicesStarted = false;
+        bool m_stateSubscribed = false;
+        Windows::System::Display::DisplayRequest m_displayRequest{ nullptr };
+        bool m_displayActive = false;
     };
 }
