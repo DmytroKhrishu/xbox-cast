@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cwctype>
 #include <winrt/Windows.ApplicationModel.h>
+#include <winrt/Windows.ApplicationModel.Resources.h>
 #include <winrt/Windows.Data.Json.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Foundation.Metadata.h>
@@ -195,6 +196,13 @@ void MainPage::InitializeComponent() {
     swprintf(ver, 48, L"%u.%u.%u", v.Major, v.Minor, v.Build);
     VersionText().Text(ver);
     AboutVersion().Text(std::wstring(L"Version ") + ver);
+    // Product name: the one string resource platform keeps (Resources.resw AppDisplayName, also the manifest name).
+    try {
+        auto name = Windows::ApplicationModel::Resources::ResourceLoader::GetForViewIndependentUse().GetString(L"AppDisplayName");
+        if (!name.empty()) AboutProduct().Text(name);
+    } catch (hresult_error const& e) {
+        Logf('W', "AppDisplayName resource missing 0x%08x", static_cast<uint32_t>(e.code()));
+    }
     std::wstring core = xcui::Bridge::Get().CoreVersion();
     AboutCore().Text(core);
     AboutCore().Visibility(core.empty() ? Visibility::Collapsed : Visibility::Visible);
