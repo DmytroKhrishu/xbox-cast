@@ -1,4 +1,26 @@
+# local config / secrets (copy .env.example); never commit
 .env
+.env.*
+!.env.example
 *.pfx
+*.p12
+*.pem
+*.key
 *.jks
+# build output
+build/
+out/
+native/out/
+native/vcpkg_installed/
+app/x64/
+app/ARM64/
+app/Generated Files/
+app/AppPackages/
+app/BundleArtifacts/
+packages/
+.vs/
+*.user
+.deploy/
+__pycache__/
 node_modules
+dumps/
