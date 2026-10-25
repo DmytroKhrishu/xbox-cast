@@ -1,0 +1,222 @@
+name: build-store
+
+# Microsoft Store build of Airtime (docs/building.md "Microsoft Store build"). Manual only. Produces:
+#   airtime-store-upload    -> *.msixupload (StoreUpload, unsigned; Partner Center signs it). Upload this one.
+#   airtime-store-test-x64  -> the SAME Store identity as a sideloadable .msix signed with the test cert (subject = Store
+#                              publisher CN) + Dependencies/x64, to check on a Dev Mode console next to the dev build:
+#                              tools/deploy.py --run-id N --artifact airtime-store-test-x64 --match <STORE_NAME> --launch
+# Version 1.0.<run_number + VERSION_OFFSET>.0 (independent of the sideload 0.1.x line: different identity).
+# Both packages are built with /p:XcStoreBuild=true (XC_STORE_BUILD: the devServer setting defaults to off).
+on:
+  workflow_dispatch:
+
+# Store identity: repository VARIABLES (Settings > Secrets and variables > Actions > Variables), copied from Partner
+# Center > the app > Product management > Product identity. Never commit their values.
+#   STORE_NAME               Package/Identity/Name
+#   STORE_PUBLISHER          Package/Identity/Publisher (CN=XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)
+#   STORE_PUBLISHER_DISPLAY  Package/Properties/PublisherDisplayName
+#   STORE_PHONE_PRODUCT_ID   a stable GUID for mp:PhoneIdentity (generate once, never change it)
+#   STORE_DISPLAY            display name (default Airtime; must match the reserved name)
+# Secrets: STORE_TEST_PFX_B64 / STORE_TEST_PFX_PASSWORD, a stable code-signing pfx whose subject == STORE_PUBLISHER.
+env:
+  STORE_NAME: ${{ vars.STORE_NAME }}
+  STORE_PUBLISHER: ${{ vars.STORE_PUBLISHER }}
+  STORE_PUBLISHER_DISPLAY: ${{ vars.STORE_PUBLISHER_DISPLAY }}
+  STORE_DISPLAY: ${{ vars.STORE_DISPLAY || 'Airtime' }}
+  STORE_PHONE_PRODUCT_ID: ${{ vars.STORE_PHONE_PRODUCT_ID }}
+
+jobs:
+  build:
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 120
+    steps:
+      - name: Check Store identity variables
+        shell: pwsh
+        run: |
+          $missing = @('STORE_NAME', 'STORE_PUBLISHER', 'STORE_PUBLISHER_DISPLAY', 'STORE_PHONE_PRODUCT_ID') | ? { -not [Environment]::GetEnvironmentVariable($_) }
+          if ($missing) { echo "::error::Set these repository variables from Partner Center > Product identity: $($missing -join ', ') (docs/building.md)"; exit 1 }
+          if ($env:STORE_NAME -notmatch '^[A-Za-z0-9.-]{3,50}$') { echo "::error::STORE_NAME is not a valid package name"; exit 1 }
+          if ($env:STORE_PUBLISHER -notmatch '^CN=') { echo "::error::STORE_PUBLISHER must look like CN=XXXXXXXX-XXXX-..."; exit 1 }
+          [guid]::Parse($env:STORE_PHONE_PRODUCT_ID) | Out-Null
+
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: microsoft/setup-msbuild@v2
+
+      # castcore (same as build.yml, but required: a Store build without the receiver is useless).
+      - name: castcore present?
+        shell: pwsh
+        run: |
+          if (!(Test-Path native/build-uwp.ps1)) { echo "::error::native/build-uwp.ps1 missing, a Store build needs castcore"; exit 1 }
+
+      - name: vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/vcpkg-bincache
+          key: vcpkg-x64-uwp-${{ hashFiles('native/vcpkg.json', 'native/vcpkg-configuration.json', 'native/build-uwp.ps1') }}
+          restore-keys: vcpkg-x64-uwp-
+
+      - name: Build castcore (x64-uwp)
+        shell: pwsh
+        env:
+          VCPKG_DEFAULT_BINARY_CACHE: ${{ runner.temp }}/vcpkg-bincache
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          pwsh native/build-uwp.ps1 -Arch x64 -Config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          if (!(Test-Path native/out/uwp-x64/lib/link.txt)) { throw "build-uwp.ps1 finished but native/out/uwp-x64/lib/link.txt is missing" }
+          "link.txt:"; Get-Content native/out/uwp-x64/lib/link.txt
+
+      - name: Store identity + version 1.0.<run_number + VERSION_OFFSET>.0
+        shell: pwsh
+        env:
+          VERSION_OFFSET: ${{ vars.VERSION_OFFSET }}
+        run: |
+          $v = "1.0.$([int]'${{ github.run_number }}' + [int]('0' + $env:VERSION_OFFSET)).0"
+          $m = "app\Package.appxmanifest"
+          [xml]$x = Get-Content $m -Raw
+          $ns = New-Object Xml.XmlNamespaceManager $x.NameTable
+          $ns.AddNamespace("f", "http://schemas.microsoft.com/appx/manifest/foundation/windows10")
+          $ns.AddNamespace("mp", "http://schemas.microsoft.com/appx/2014/phone/manifest")
+          $id = $x.SelectSingleNode("/f:Package/f:Identity", $ns)
+          $id.SetAttribute("Name", $env:STORE_NAME)
+          $id.SetAttribute("Publisher", $env:STORE_PUBLISHER)
+          $id.SetAttribute("Version", $v)
+          $x.SelectSingleNode("/f:Package/mp:PhoneIdentity", $ns).SetAttribute("PhoneProductId", $env:STORE_PHONE_PRODUCT_ID)
+          $x.SelectSingleNode("/f:Package/f:Properties/f:PublisherDisplayName", $ns).InnerText = $env:STORE_PUBLISHER_DISPLAY
+          $x.Save((Resolve-Path $m))
+          # Display name stays ms-resource:AppDisplayName (the UI's About page reads the same string).
+          $r = "app\Assets\Strings\en-US\Resources.resw"
+          [xml]$rx = Get-Content $r -Raw
+          $rx.SelectSingleNode("/root/data[@name='AppDisplayName']/value").InnerText = $env:STORE_DISPLAY
+          $rx.Save((Resolve-Path $r))
+          Get-Content $m | Select-String -Pattern 'Identity|DisplayName|TargetDeviceFamily'
+          "AppDisplayName: $env:STORE_DISPLAY"
+          echo "XC_VERSION=$v" >> $env:GITHUB_ENV
+
+      - name: Restore NuGet packages
+        run: nuget restore app\XboxCast.sln -NonInteractive
+
+      - name: Build .msixupload (StoreUpload, unsigned)
+        run: >
+          msbuild app\XboxCast.vcxproj /m
+          /p:Configuration=Release /p:Platform=x64
+          /p:XcStoreBuild=true
+          /p:AppxBundle=Always /p:AppxBundlePlatforms=x64
+          /p:UapAppxPackageBuildMode=StoreUpload
+          /p:AppxPackageSigningEnabled=false
+          /p:GenerateTestArtifacts=false
+          /p:AppxPackageDir=${{ github.workspace }}\upload\
+          /v:minimal
+
+      - name: Test cert with subject = Store publisher (stable secret if set, else generated here)
+        shell: pwsh
+        env:
+          PFX_B64: ${{ secrets.STORE_TEST_PFX_B64 }}
+          PFX_PW: ${{ secrets.STORE_TEST_PFX_PASSWORD }}
+        run: |
+          $f = Join-Path $env:RUNNER_TEMP "StoreTest.pfx"
+          if ($env:PFX_B64) {
+            [IO.File]::WriteAllBytes($f, [Convert]::FromBase64String($env:PFX_B64)); $pwText = $env:PFX_PW; "using STORE_TEST_PFX_B64"
+          } else {
+            echo "::warning::No STORE_TEST_PFX_B64 secret, per-run test cert (install with deploy.py --reinstall)"
+            $pwText = [guid]::NewGuid().ToString()
+            $c = New-SelfSignedCertificate -Type Custom -Subject $env:STORE_PUBLISHER -KeyUsage DigitalSignature -FriendlyName "Airtime store test" -CertStoreLocation Cert:\CurrentUser\My -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
+            Export-PfxCertificate -Cert $c -FilePath $f -Password (ConvertTo-SecureString $pwText -Force -AsPlainText) | Out-Null
+          }
+          $pw = ConvertTo-SecureString -String $pwText -Force -AsPlainText
+          $c = Import-PfxCertificate -FilePath $f -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+          if ($c.Subject -ne $env:STORE_PUBLISHER) { throw "test cert subject != STORE_PUBLISHER" }
+          echo "::add-mask::$pwText"
+          echo "TEST_PFX=$f" >> $env:GITHUB_ENV
+          echo "TEST_PW=$pwText" >> $env:GITHUB_ENV
+          echo "TEST_THUMB=$($c.Thumbprint)" >> $env:GITHUB_ENV
+
+      - name: Build sideload test .msix (same Store identity, test-signed)
+        run: >
+          msbuild app\XboxCast.vcxproj /m
+          /p:Configuration=Release /p:Platform=x64
+          /p:XcStoreBuild=true
+          /p:AppxBundle=Never
+          /p:UapAppxPackageBuildMode=SideloadOnly
+          /p:AppxPackageDir=${{ github.workspace }}\test\
+          /p:PackageCertificateKeyFile=${{ env.TEST_PFX }}
+          /p:PackageCertificatePassword=${{ env.TEST_PW }}
+          /p:PackageCertificateThumbprint=${{ env.TEST_THUMB }}
+          /v:minimal
+
+      - name: Smoke check both packages
+        shell: pwsh
+        run: |
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          Get-ChildItem upload, test -Recurse -Include *.msixupload, *.msixbundle, *.msix, *.appx | % { "  {0,10} KB  {1}" -f [int]($_.Length/1KB), $_.FullName }
+          $need = @('XboxCast.exe', 'resources.pri', 'AppxManifest.xml', 'avcodec-62.dll', 'avformat-62.dll', 'avutil-60.dll', 'swresample-6.dll', 'swscale-9.dll')
+          function Check-Msix([string]$path, [string]$label) {
+            $x = Join-Path $env:RUNNER_TEMP "x-$label"
+            Remove-Item -Recurse -Force $x -ErrorAction SilentlyContinue
+            [IO.Compression.ZipFile]::ExtractToDirectory($path, $x)
+            $files = Get-ChildItem $x -Recurse -File
+            "== $label $(Split-Path $path -Leaf): $($files.Count) files"
+            $files | Sort-Object FullName | % { "  {0,10}  {1}" -f $_.Length, $_.FullName.Substring($x.Length + 1) }
+            $missing = $need | ? { -not (Test-Path (Join-Path $x $_)) }
+            if ($missing) { throw "$label missing in package root: $($missing -join ', ')" }
+            $bad = @()
+            foreach ($f in $files) {
+              $t = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($f.FullName))
+              if ($t -match '192\.168\.\d{1,3}\.\d{1,3}' -or $t -match '\.ts\.net') { $bad += $f.FullName.Substring($x.Length + 1) }
+            }
+            if ($bad) { throw "$label private-looking strings (LAN IP / tailnet name) in: $($bad -join ', ')" }
+            [xml]$am = Get-Content (Join-Path $x 'AppxManifest.xml') -Raw
+            $i = $am.Package.Identity
+            if ($i.Name -ne $env:STORE_NAME -or $i.Publisher -ne $env:STORE_PUBLISHER -or $i.Version -ne $env:XC_VERSION) { throw "$label identity mismatch: $($i.Name) $($i.Version)" }
+            "$label identity OK: $($i.Name) $($i.Version) $($i.ProcessorArchitecture), devices: $($am.Package.Dependencies.TargetDeviceFamily | % { "$($_.Name) $($_.MinVersion)..$($_.MaxVersionTested)" })"
+            # castcore's version string ("castcore 0.1 (uxplay ...)") only exists when the library is linked; the app's
+            # own "no castcore built in" messages would make a plain 'castcore' search pass vacuously.
+            $core = Select-String -Path (Join-Path $x 'XboxCast.exe') -Pattern 'castcore [0-9.]+ \(uxplay' -Quiet
+            if (-not $core) { throw "$label XboxCast.exe lacks castcore's version string (built without the receiver?)" }
+            "$label XC_HAVE_CASTCORE=true (castcore version string found in exe)"
+          }
+          # Upload: .msixupload (zip) -> .msixbundle -> x64 .msix
+          $up = @(Get-ChildItem upload -Recurse -Filter *.msixupload)
+          if ($up.Count -ne 1) { throw "expected 1 .msixupload, found $($up.Count)" }
+          $ux = Join-Path $env:RUNNER_TEMP "x-upload-outer"
+          [IO.Compression.ZipFile]::ExtractToDirectory($up[0].FullName, $ux)
+          "msixupload contents:"; Get-ChildItem $ux -Recurse -File | % { "  $($_.Name)" }
+          $bundle = @(Get-ChildItem $ux -Recurse -Include *.msixbundle, *.appxbundle)
+          if ($bundle.Count -ne 1) { throw "expected 1 bundle in the .msixupload, found $($bundle.Count)" }
+          $bx = Join-Path $env:RUNNER_TEMP "x-upload-bundle"
+          [IO.Compression.ZipFile]::ExtractToDirectory($bundle[0].FullName, $bx)
+          $inner = @(Get-ChildItem $bx -Recurse -Include *.msix, *.appx | ? { $_.Name -match 'x64' })
+          if ($inner.Count -ne 1) { throw "expected 1 x64 package in the bundle, found $($inner.Count)" }
+          Check-Msix $inner[0].FullName 'upload'
+          # Test package (signed with the test cert)
+          $msix = @(Get-ChildItem test -Recurse -Filter *.msix | ? { $_.FullName -notmatch '\\Dependencies\\' })
+          if ($msix.Count -ne 1) { throw "expected 1 test msix, found $($msix.Count)" }
+          $sig = Get-AuthenticodeSignature $msix[0].FullName
+          if ($sig.Status -eq 'NotSigned' -or $sig.SignerCertificate.Subject -ne $env:STORE_PUBLISHER) { throw "test msix not signed by the Store publisher cert" }
+          "test signature: $($sig.Status) (signer = STORE_PUBLISHER)"
+          Check-Msix $msix[0].FullName 'test'
+          # Stage the test artifact like build.yml's: msix + Dependencies/x64 (no Desktop VCLibs) for tools/deploy.py.
+          $stage = Join-Path $env:GITHUB_WORKSPACE 'artifact-test'
+          New-Item -ItemType Directory -Force (Join-Path $stage 'Dependencies\x64') | Out-Null
+          Copy-Item $msix[0].FullName $stage
+          $deps = Get-ChildItem test -Recurse -Include *.appx, *.msix | ? { $_.FullName -match '\\Dependencies\\x64\\' -and $_.Name -notmatch '\.Desktop\.' }
+          $deps | % { Copy-Item $_.FullName (Join-Path $stage 'Dependencies\x64'); "  dependency: $($_.Name)" }
+          "## Airtime Store $env:XC_VERSION" >> $env:GITHUB_STEP_SUMMARY
+          "upload: $($up[0].Name) ($([int]($up[0].Length/1KB)) KB); test: $($msix[0].Name); castcore: true; XcStoreBuild: true" >> $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: airtime-store-upload
+          retention-days: 3
+          path: upload/**/*.msixupload
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: airtime-store-test-x64
+          retention-days: 3
+          path: artifact-test/
+          if-no-files-found: error

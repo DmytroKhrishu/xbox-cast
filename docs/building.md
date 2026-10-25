@@ -1,6 +1,7 @@
-# Building xbox-cast
+# Building Airtime
 
-The app is a C++/WinRT UWP app (`app/XboxCast.vcxproj`, x64 only) for Xbox in Dev Mode. The receiver core
+Airtime (repository and project files: xbox-cast / `XboxCast`) is a C++/WinRT UWP app (`app/XboxCast.vcxproj`, x64
+only) for Xbox: sideloaded in Dev Mode, or installed from the Microsoft Store. The receiver core
 (`native/`, castcore + vendored UxPlay) is a static C library built for `x64-uwp` by `native/build-uwp.ps1`. No build ever
 contains an address, host name or personal value: identities and keys come from your CI settings.
 
@@ -10,7 +11,8 @@ workflow). On `windows-2025-vs2026` it:
 1. builds castcore with `pwsh native/build-uwp.ps1 -Arch x64 -Config Release` when that script exists (vcpkg binary cache
    in `actions/cache`); otherwise the app builds without the receiver (`XC_HAVE_CASTCORE` off: idle screen only);
 2. signs with your certificate (below) and checks its subject against the manifest `Publisher`;
-3. stamps the version `0.1.<run_number + VERSION_OFFSET>.0` and the sideload identity into `Package.appxmanifest`;
+3. stamps the version `0.1.<run_number + VERSION_OFFSET>.0` and the sideload identity into `Package.appxmanifest`, and
+   the display name `Airtime (dev)` into `Resources.resw` (so it is told apart from the Store build on one console);
 4. builds the package (`/p:UapAppxPackageBuildMode=SideloadOnly /p:AppxBundle=Never`);
 5. smoke-checks it: unzips the `.msix`, lists every file, requires `XboxCast.exe`, `resources.pri` and the FFmpeg DLLs, and
    fails if any packaged file contains a LAN IP (`192.168.x.x`) or a tailnet name;
@@ -34,10 +36,66 @@ Repository **variables** (optional):
 | `SIDELOAD_PHONE_PRODUCT_ID` | overrides `mp:PhoneIdentity PhoneProductId` (a GUID). Only needed together with `SIDELOAD_IDENTITY` when an existing install used a different one. |
 | `VERSION_OFFSET` | added to the CI run number in the version. Set it when you move to a new repo so new builds still install over older ones. |
 
-The product name is not final: the display name lives only in `app/Assets/Strings/en-US/Resources.resw`
-(`AppDisplayName`, used by the manifest as `ms-resource:AppDisplayName`).
+The product name **Airtime** lives only in `app/Assets/Strings/en-US/Resources.resw` (`AppDisplayName`, used by the
+manifest as `ms-resource:AppDisplayName` and by the About page). The AirPlay name the iPhone shows under Screen Mirroring
+is the user setting `deviceName` (default `Xbox`), not the product name.
 
-A Microsoft Store build (`build-store.yml`, Store identity from variables, `.msixupload`) is not there yet.
+## Microsoft Store build
+`.github/workflows/build-store.yml`, manual only (Actions → build-store → Run workflow, or
+`gh workflow run build-store.yml`). It builds castcore (required here), stamps the **Store identity** from repository
+variables and the version `1.0.<run_number + VERSION_OFFSET>.0`, and builds twice with `/p:XcStoreBuild=true`
+(`XC_STORE_BUILD`: the dev server setting defaults to off):
+
+| Artifact (kept 3 days) | What |
+|---|---|
+| `airtime-store-upload` | `Airtime…_x64.msixupload` (`StoreUpload`, bundle, unsigned). Upload this to Partner Center; Microsoft signs it. |
+| `airtime-store-test-x64` | the same identity as a sideloadable `.msix` signed with the Store test cert, plus `Dependencies/x64`. |
+
+The smoke step unpacks both packages (the upload via its bundle), requires `XboxCast.exe`, `resources.pri` and the FFmpeg
+DLLs, castcore's version string in the exe, the Store Name/Publisher/Version in `AppxManifest.xml`, and no LAN IP or
+tailnet name in any file. The Store version line is independent of the sideload `0.1.x` line (different identity), but
+every upload must be higher than the last one Partner Center accepted: never lower `VERSION_OFFSET`.
+
+The manifest keeps `TargetDeviceFamily Windows.Universal` (MaxVersionTested 10.0.26100.0); restrict it to Xbox in Partner
+Center (Packages → Device family availability: tick Xbox only).
+
+Repository **variables** (values from Partner Center → the app → Product management → Product identity; never commit
+them):
+
+| Variable | What |
+|---|---|
+| `STORE_NAME` | Package/Identity/Name |
+| `STORE_PUBLISHER` | Package/Identity/Publisher (`CN=<guid>`) |
+| `STORE_PUBLISHER_DISPLAY` | Package/Properties/PublisherDisplayName |
+| `STORE_PHONE_PRODUCT_ID` | any GUID for `mp:PhoneIdentity`, generated once, never changed |
+| `STORE_DISPLAY` | display name, default `Airtime` (the reserved Store name) |
+
+Repository **secrets**: `STORE_TEST_PFX_B64` / `STORE_TEST_PFX_PASSWORD`, a code-signing `.pfx` whose subject equals
+`STORE_PUBLISHER` (make it like the sideload cert above, with that subject). Keep it stable: a new key means the next test
+build can't update the installed one. Without it each run signs with a throwaway cert (a `::warning::` says so).
+
+Check the Store build on a Dev Mode console next to the dev build before uploading:
+
+```sh
+tools/deploy.py --run-id <id> --artifact airtime-store-test-x64 --launch
+```
+
+## Art
+Every PNG in `app/Assets` and the Store listing art in `docs/store/art/` come from one generator (Node +
+`@resvg/resvg-js`, nothing installed in the repo). The mark lives in `docs/store/art/src/marks.mjs`; listing title text
+uses Inter Display SemiBold (SIL OFL, not committed).
+
+```sh
+mkdir -p "$TMPDIR/art" && cd "$TMPDIR/art" && npm init -y >/dev/null && npm install @resvg/resvg-js
+curl -sSLO https://github.com/rsms/inter/releases/download/v4.1/Inter-4.1.zip && unzip -q Inter-4.1.zip -d inter
+R=<repo>/docs/store/art/src
+node $R/build.mjs        # app/Assets/*.png, each at its existing size and name
+node $R/store.mjs        # app tile icon, box art, poster (title in the top 2/3), super hero (no text), mark.svg
+node $R/xbox-extras.mjs  # Xbox branded key art, titled hero, featured square
+node $R/concepts.mjs     # docs/store/art/concepts.png review sheet (run last)
+```
+
+To add a package image, create a PNG with the wanted name and size in `app/Assets` and rerun `build.mjs`.
 
 ### Capabilities
 `internetClient`, `internetClientServer`, `privateNetworkClientServer` (AirPlay listens on the LAN), and the restricted
@@ -108,7 +166,8 @@ Or open `app\XboxCast.sln`, pick `Release | x64`, and deploy to the console dire
 - Linked for everyone: `d3d11 dxgi d3dcompiler xaudio2 ws2_32`, FFmpeg (`avcodec avformat avutil swresample swscale`; the
   NuGet package packages its DLLs next to the exe), and every lib in castcore's `link.txt` when it exists
   (`XC_HAVE_CASTCORE` is then defined).
-- `XC_STORE_BUILD` is defined for Store builds (`/p:XcStoreBuild=true`): the `devServer` setting then defaults to off.
+- `XC_STORE_BUILD` is defined for Store builds (`/p:XcStoreBuild=true`, build-store.yml): the `devServer` setting then
+  defaults to off.
 
 ## Deploy to an Xbox in Dev Mode
 1. Activate Developer Mode on the console (Microsoft's Dev Mode Activation app) and restart into Dev Home.
@@ -123,7 +182,11 @@ tools/deploy.py                      # latest run's xboxcast-x64 → Device Port
 tools/deploy.py --run-id <id> --launch
 tools/deploy.py --reinstall          # signing cert changed: uninstall the old package first
 tools/deploy.py --skip-install       # only download and list the package (.deploy/), don't touch the console
+tools/deploy.py --artifact airtime-store-test-x64 --run-id <id>   # the Store-identity test build (side by side)
 ```
+
+`--reinstall`, `--launch` and the final report act on packages whose name contains the downloaded package's Identity
+Name (override with `--match`), so the dev and Store builds never touch each other.
 
 By hand: Device Portal → **Home** → **Add**: pick the `.msix`, then add the packages from `Dependencies/x64/` (skip
 `*.Desktop.*`), Start.
