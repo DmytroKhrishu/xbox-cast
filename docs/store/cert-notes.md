@@ -34,7 +34,7 @@ Restricted capability hevcPlayback: used for hardware H.265/HEVC decoding and 4K
 Checks behind the steps (keep them true): idle text and legend `docs/ui.md` "Screens and states", "Controls legend";
 Settings navigation and persistence `docs/controller-ux.md` "Settings"; overlay and pad mapping
 `docs/controller-ux.md` "Mapping"; PIN `docs/core.md` (4-digit code per connection with `pin_mode = 1`).
-No minimum iOS version is stated: only a current iPhone has been tested.
+Tested on Xbox Series S with an iPhone on iOS 27.2; no minimum iOS version is claimed.
 
 ## 2. hevcPlayback justification (939 chars)
 ```

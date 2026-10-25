@@ -1,7 +1,7 @@
 # Partner Center submission checklist: Airtime 1.0
 
 First submission, **Private audience**. Do the steps in this order; texts come from the other files in this folder.
-The product (name Airtime) is already reserved under the DmKhGames publisher account. Store identity values live
+The product (name Airtime) is already reserved under the owner's publisher account. Store identity values live
 only in the repo variables and Partner Center (never in this repo).
 
 Microsoft Learn reference for every page: [Create an app submission](https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/create-app-submission).
@@ -46,8 +46,8 @@ Microsoft Learn reference for every page: [Create an app submission](https://lea
 - [ ] **Website:** https://github.com/DmytroKhrishu/xbox-cast
 - [ ] **Support contact info (required for Xbox):** https://github.com/DmytroKhrishu/xbox-cast/issues
       The field accepts "the URL of the web page where your customers can go for support ... or an email address"
-      (same Support info page), so the issues URL is enough. If certification still asks for an email, use
-      `<support-email>` (to be supplied by the owner; never commit it here).
+      (same Support info page). Decided: use the owner's support email (kept out of the repo; the orchestrator enters
+      it in Partner Center). The issues URL stays as the Website field.
 - [ ] Phone number / address: optional for individual developers; leave empty.
 - [ ] **Product declarations:** leave the default ticks (install to alternate drives, backups). Do **not** tick
       "allows users to make purchases without the Microsoft Store commerce system", "tested to meet accessibility

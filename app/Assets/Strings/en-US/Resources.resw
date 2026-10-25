@@ -43,6 +43,6 @@
     <comment>Product name. The one place to change it: manifest DisplayName and the UI read this. build.yml (sideload) stamps "Airtime (dev)" so it can sit next to the Store build; build-store.yml keeps this value.</comment>
   </data>
   <data name="AppDescription" xml:space="preserve">
-    <value>Screen mirroring receiver for your TV</value>
+    <value>AirPlay screen mirroring receiver for your TV</value>
   </data>
 </root>

@@ -121,7 +121,7 @@ linked explicitly. Third-party licenses: `THIRD_PARTY.md`, also summarised in th
 ```
 DmytroKhrishu
 ```
-("Published by" always shows the publisher display name, DmKhGames.)
+("Published by" always shows the publisher display name.)
 
 ## Website (Properties → Support info)
 ```
@@ -144,17 +144,18 @@ Never pick Games: that choice can't be undone later.
 Minimum hardware:
 ```
 An iPhone or iPad with Screen Mirroring, on the same local network as the console
-Xbox One or Xbox Series X|S
+Xbox Series X|S (tested with iOS 27.2)
 ```
 Recommended hardware:
 ```
-For 4K: Xbox One S, Xbox One X or Xbox Series X|S and a 4K TV
+For 4K: a 4K TV
 Console on wired Ethernet or 5 GHz Wi-Fi for the smoothest picture
 ```
 Basis: Microsoft, [4K video playback for UWP apps on Xbox](https://learn.microsoft.com/en-us/windows/uwp/audio-video-camera/hevc-xbox):
 "4K and HDR10 video playback is supported on the Xbox One S onwards (the original Xbox One is restricted to 1080p)"
 and the original Xbox One decodes HEVC in software only (same page), so on it 1080p with H.265 video off is the safe
-setting. Only the owner's console has been tested so far; the original Xbox One is untested.
+setting. Tested on Xbox Series S (Series X runs the same app) with iOS 27.2; Xbox One consoles are untested, so the
+listing names only Series X|S.
 Properties → System requirements (hardware checkboxes): optional; leave blank, the controller is the only input.
 
 ## Screenshots (Xbox device family)
