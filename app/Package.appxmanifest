@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Identity: CI overrides Name with the repo variable SIDELOAD_IDENTITY and stamps Version = 0.1.<run + VERSION_OFFSET>.0
-  (docs/building.md). Publisher must equal the signing certificate's subject.
-  Product name: one place, app/Assets/Strings/en-US/Resources.resw (AppDisplayName), referenced via ms-resource.
+  Sideload identity (build.yml): CI overrides Name with the repo variable SIDELOAD_IDENTITY and stamps
+  Version = 0.1.<run + VERSION_OFFSET>.0. Publisher must equal the signing certificate's subject.
+  Store identity (build-store.yml): Name, Publisher, PublisherDisplayName and PhoneProductId come from repo variables
+  and Version = 1.0.<run + VERSION_OFFSET>.0 (docs/building.md "Microsoft Store build"). Never commit those values.
+  Product name: one place, app/Assets/Strings/en-US/Resources.resw (AppDisplayName "Airtime"), referenced via
+  ms-resource; the sideload build stamps "Airtime (dev)" there.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -17,7 +20,7 @@
 
   <Properties>
     <DisplayName>ms-resource:AppDisplayName</DisplayName>
-    <PublisherDisplayName>Xbox Cast</PublisherDisplayName>
+    <PublisherDisplayName>Airtime contributors</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
 
@@ -38,7 +41,7 @@
         Square44x44Logo="Assets\Square44x44Logo.png"
         BackgroundColor="transparent">
         <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" Square71x71Logo="Assets\SmallTile.png" Square310x310Logo="Assets\LargeTile.png" />
-        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#0b0b0f" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" BackgroundColor="#07070B" />
       </uap:VisualElements>
     </Application>
   </Applications>

@@ -1,7 +1,8 @@
-# xbox-cast (working title)
+# Airtime — AirPlay screen mirroring receiver for Xbox
 
-Turn an Xbox into a screen-mirroring and casting receiver. Mirror an iPhone, iPad or Mac to the TV with sound, with no
-time limits and nothing locked behind a paywall. Open source, GPL-3.0.
+Airtime turns an Xbox into an AirPlay screen-mirroring receiver: mirror an iPhone, iPad or Mac to the TV with sound, with
+no time limits and nothing locked behind a paywall. Open source, GPL-3.0. (The repository keeps its original name,
+xbox-cast. Airtime is not affiliated with Apple or Microsoft; AirPlay and Xbox are their trademarks.)
 
 **Status:** early development. Nothing to install yet.
 

@@ -39,8 +39,8 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="AppDisplayName" xml:space="preserve">
-    <value>Xbox Cast (dev)</value>
-    <comment>Product name (TBD). The one place to change it: manifest DisplayName and the UI read this.</comment>
+    <value>Airtime</value>
+    <comment>Product name. The one place to change it: manifest DisplayName and the UI read this. build.yml (sideload) stamps "Airtime (dev)" so it can sit next to the Store build; build-store.yml keeps this value.</comment>
   </data>
   <data name="AppDescription" xml:space="preserve">
     <value>Screen mirroring receiver for your TV</value>

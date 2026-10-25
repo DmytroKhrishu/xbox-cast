@@ -151,6 +151,14 @@ jobs:
           $x.Save((Resolve-Path $m))
           Select-String -Path $m -Pattern '<Identity'
           echo "XC_VERSION=$v" >> $env:GITHUB_ENV
+          # Display name "<AppDisplayName> (dev)" so this build is told apart from the Store build on the same console.
+          $r = "app\Assets\Strings\en-US\Resources.resw"
+          [xml]$rx = Get-Content $r -Raw
+          $dn = $rx.SelectSingleNode("/root/data[@name='AppDisplayName']/value")
+          if (!$dn) { throw "AppDisplayName missing in $r" }
+          if ($dn.InnerText -notmatch '\(dev\)$') { $dn.InnerText = "$($dn.InnerText) (dev)" }
+          $rx.Save((Resolve-Path $r))
+          "display name: $($dn.InnerText)"
 
       - name: Restore NuGet packages
         run: nuget restore app\XboxCast.sln -NonInteractive
