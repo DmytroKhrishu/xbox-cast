@@ -217,7 +217,7 @@ int main(void)
     snprintf(tmpl, sizeof(tmpl), "%s/xc-test-XXXXXX", tmp && tmp[0] ? tmp : "/tmp");
     if (!mkdtemp(tmpl)) { snprintf(tmpl, sizeof(tmpl), "%s", dir); if (!mkdtemp(tmpl)) return 1; }
     printf("%s, data_dir %s, port %u\n", xc_version_string(), tmpl, port);
-    CHECK(xc_api_version() == 1, "API version 1");
+    CHECK(xc_api_version() == XC_API_VERSION && XC_API_VERSION == 2, "API version 2");
     {
         int64_t a = xc_now_ns(), b;
         usleep(10000);

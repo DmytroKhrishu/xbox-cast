@@ -23,6 +23,7 @@ One page, stacked layers, top-most owns input: **PIN > Settings > Overlay > Mirr
 | Idle, receiver not available | `png/idle-error.png` | receiver Stopped with a `LastError` (castcore not built in, xc_create/xc_start failed). Plain-text line "Screen Mirroring is not available" above the name, the how-to line becomes the problem text, legend shrinks to Menu Settings. Polled every 2 s while idle |
 | Connecting | `png/connecting.png` | ReceiverHost state `connecting`. Spinner + "Connecting to <client>"; the hint line fades in after 3 s |
 | Mirroring | `png/overlay.png` (overlay shown) | state `mirroring`. Full-bleed video, zero chrome |
+| Now playing | (no mockup) | state `audio`: audio-only AirPlay (an app's AirPlay button, e.g. Music, Spotify, YouTube without HLS). Idle backdrop keeps drifting; 520 px cover art (placeholder glyph without art), "PLAYING FROM <CLIENT>" caption (+ "PAUSED" when no audio for 1.5 s), title / artist / album, progress bar with elapsed and remaining when the sender reports a duration. Legend: X Sound, Menu Settings, hold B Disconnect. No overlay; a later first video frame switches to mirroring |
 | Overlay | `png/overlay.png`, `png/overlay-zoom.png` | any button while mirroring; opaque bottom panel, auto-hides after 4 s idle |
 | Stats | `png/stats.png` | `showStats` and mirroring; opaque top-right panel, refreshed 1 Hz, never takes focus |
 | Settings | `png/settings.png`, `png/settings-picture.png` | Menu; opaque in-page panel (`#FF07070B`) over the idle screen or the live video |

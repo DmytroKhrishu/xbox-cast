@@ -19,7 +19,7 @@ Pure C, no platform headers in the public header. Thread-safe entry points. All 
 app must not block in them for more than ~1 ms (copy and queue).
 
 ```c
-#define XC_API_VERSION 1
+#define XC_API_VERSION 2
 
 typedef enum { XC_LOG_DEBUG, XC_LOG_INFO, XC_LOG_WARN, XC_LOG_ERROR } xc_log_level;
 typedef enum { XC_VIDEO_H264 = 1, XC_VIDEO_H265 = 2 } xc_video_codec;
@@ -82,6 +82,11 @@ typedef struct {
     void (*on_audio_flush)(void *ctx);
     void (*on_volume)(void *ctx, float volume_db);            /* AirPlay volume: -144 = mute, -30..0 */
     void (*on_stats)(void *ctx, const char *json);            /* ~1 Hz: bitrate, fps in, packet loss, ntp offset */
+    /* API 2: audio-only AirPlay (an app's AirPlay button, not Screen Mirroring). Optional. */
+    void (*on_audio_stream)(void *ctx, int started, int audio_only); /* audio SETUP / TEARDOWN */
+    void (*on_track)(void *ctx, const char *title, const char *artist, const char *album); /* UTF-8, "" = unknown */
+    void (*on_cover_art)(void *ctx, const uint8_t *image, size_t size);  /* JPEG/PNG; 0 = none */
+    void (*on_progress)(void *ctx, double position_s, double duration_s); /* at track start/seek/resume only */
 } xc_callbacks;
 
 typedef struct xc_receiver xc_receiver;
@@ -96,7 +101,7 @@ void         xc_destroy(xc_receiver *r);
 const char  *xc_version_string(void);                         /* "castcore x.y (uxplay <tag>)" */
 ```
 Core may add functions/fields at the END of structs (bump `XC_API_VERSION`); never reorder.
-Later (not v1): AirPlay URL/HLS video callbacks, cover art/metadata for audio-only AirPlay.
+Later: AirPlay URL/HLS video callbacks (not built: HLS feature bits stay off).
 
 ## 2. Native build output (owner: core; consumed by platform's CI)
 `pwsh native/build-uwp.ps1 -Arch x64 -Config Release` produces:
@@ -172,14 +177,14 @@ Linux: `cmake -S native -B build && cmake --build build` builds `castcore` + `ho
 - `ApplicationViewScaling::TrySetDisableLayoutScaling(true)`: layout in 1920×1080 effective pixels (not Xbox's 200% 960×540).
   Media still sizes the swap chain from `SwapChainPanel` ActualSize × CompositionScaleX/Y and handles `CompositionScaleChanged`.
 - `Application::RequiresPointerMode(WhenRequested)`, `FocusVisualKind(Reveal)` off → UI draws its own calm focus visuals.
-- Keep the screen awake while mirroring with `DisplayRequest`, created lazily on the first session (never before
+- Keep the screen awake while a sender is connected (connecting, mirroring, audio-only) with `DisplayRequest`, created lazily on the first session (never before
   `Window::Activate`, that freezes the splash on Xbox).
 
 ## 4. Diagnostics (owner: platform) — there is no debugger on the console
 - `Diag::Log(level, tag, fmt...)` → in-memory ring buffer (~4000 lines) + `OutputDebugString`. castcore `on_log` is routed
   here with tag `core`. Format: `2026-01-01T12:00:00.123 I media decoder opened h264 1920x886 d3d11va`.
 - Dev HTTP server on the console, TCP **7099** (LAN only, enabled by `devServer`):
-  - `GET /status` → JSON: version, state (`idle|connecting|mirroring`), client, settings, media stats, memory.
+  - `GET /status` → JSON: version, state (`idle|connecting|mirroring|audio`), client, settings, media stats, memory.
   - `GET /log?since=<seq>` → `{seq, lines:[...]}`.
   - `POST /cmd` JSON: `{"key":"A|B|X|Y|LB|RB|Up|Down|Left|Right|Menu|View"}`, `{"viewMode":"Fill"}`, `{"zoom":1.25}`,
     `{"setting":{"k":"v"}}`, `{"disconnect":true}` → `{ok:true}`. Lets agents drive the app without a controller.

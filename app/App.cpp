@@ -97,7 +97,9 @@ void App::StartServices()
         auto dispatcher = Window::Current().Dispatcher();
         ReceiverHost::Instance().StateChanged([this, dispatcher](ReceiverState s)
         {
-            bool active = s == ReceiverState::Connecting || s == ReceiverState::Mirroring;
+            // Audio-only AirPlay too: without it the console may dim and then sleep mid-album (the backdrop keeps
+            // moving, so no static-image burn-in).
+            bool active = s == ReceiverState::Connecting || s == ReceiverState::Mirroring || s == ReceiverState::Audio;
             dispatcher.RunAsync(CoreDispatcherPriority::Normal, [this, active]() { SetDisplayActive(active); });
         });
     }

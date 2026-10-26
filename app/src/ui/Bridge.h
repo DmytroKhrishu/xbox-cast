@@ -10,7 +10,18 @@
 
 namespace xcui {
 
-enum class SessionState { Idle, Connecting, Mirroring };
+enum class SessionState { Idle, Connecting, Mirroring, Audio };   // Audio: audio-only AirPlay, no video
+
+// Audio-only AirPlay "now playing" (copy of ReceiverHost's; the UI never sees platform types).
+struct NowPlayingInfo {
+    std::wstring title, artist, album;
+    std::vector<uint8_t> art;    // JPEG/PNG bytes, empty = none
+    uint32_t artVersion = 0;
+    bool hasProgress = false;
+    double position = 0, duration = 0;   // seconds
+    bool streaming = false;      // an audio stream is set up
+    bool paused = false;         // streaming but no audio for a moment (sender paused)
+};
 
 struct StatRow {
     std::wstring label;
@@ -30,6 +41,7 @@ class Bridge {
     std::function<void(std::wstring const& json)> onStats;       // castcore on_stats, ~1 Hz
     std::function<void(std::wstring const& json)> onCommand;     // dev server POST /cmd body
     std::function<void(std::wstring const& key)> onSettingChanged;
+    std::function<void()> onNowPlaying;                          // read NowPlaying()
 
     // Subscribes to platform events. Call once on the UI thread after the callbacks are set.
     void Start();
@@ -58,6 +70,7 @@ class Bridge {
 
     // Receiver
     SessionState State() const;
+    NowPlayingInfo NowPlaying(bool withArt);
     void Disconnect();
     void RequestRestart();     // receiver settings changed: restart now if idle, else when the session ends
     void OnSessionEnded();     // runs a pending restart

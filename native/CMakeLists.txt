@@ -43,6 +43,7 @@ file(GLOB UXPLAY_SOURCES
 
 add_library(castcore STATIC
     src/castcore.c
+    src/dmap.c
     src/h264_sps.c
     ${UXPLAY_SOURCES})
 
@@ -80,7 +81,7 @@ else()
     target_compile_definitions(castcore PRIVATE _GNU_SOURCE)
     target_compile_options(castcore PRIVATE -Wall -Wno-unused-function)
     # UxPlay itself is not warning-clean; keep our own sources strict
-    set_source_files_properties(src/castcore.c src/h264_sps.c PROPERTIES COMPILE_OPTIONS "-Wextra;-Wno-unused-parameter;-Wvla")
+    set_source_files_properties(src/castcore.c src/dmap.c src/h264_sps.c PROPERTIES COMPILE_OPTIONS "-Wextra;-Wno-unused-parameter;-Wvla")
     target_link_libraries(castcore PRIVATE Threads::Threads m)
 endif()
 
@@ -106,6 +107,10 @@ if(NOT WIN32)
         target_include_directories(test_h264_sps PRIVATE src tests)
         target_link_libraries(test_h264_sps PRIVATE PkgConfig::FFMPEG)
         add_test(NAME h264_sps COMMAND test_h264_sps)
+
+        add_executable(test_dmap tests/test_dmap.c src/dmap.c)
+        target_include_directories(test_dmap PRIVATE src)
+        add_test(NAME dmap COMMAND test_dmap)
 
         pkg_check_modules(LAVF REQUIRED IMPORTED_TARGET libavformat)
         add_executable(test_aac_eld tests/test_aac_eld.c)

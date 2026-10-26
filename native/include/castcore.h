@@ -15,7 +15,7 @@
 extern "C" {
 #endif
 
-#define XC_API_VERSION 1
+#define XC_API_VERSION 2
 
 typedef enum { XC_LOG_DEBUG, XC_LOG_INFO, XC_LOG_WARN, XC_LOG_ERROR } xc_log_level;
 typedef enum { XC_VIDEO_H264 = 1, XC_VIDEO_H265 = 2 } xc_video_codec;
@@ -78,6 +78,15 @@ typedef struct {
     void (*on_audio_flush)(void *ctx);
     void (*on_volume)(void *ctx, float volume_db);            /* AirPlay volume: -144 = mute, -30..0 */
     void (*on_stats)(void *ctx, const char *json);            /* ~1 Hz: bitrate, fps in, packet loss, ntp offset */
+    /* ---- API 2: audio-only AirPlay (the sender picked this receiver under "AirPlay" in a music/video app instead of
+       Screen Mirroring: ALAC audio, no video). All optional, any castcore thread. ---- */
+    void (*on_audio_stream)(void *ctx, int started, int audio_only); /* audio SETUP (started=1; audio_only=1 when the
+                                                                         sender is not mirroring its screen) or audio
+                                                                         TEARDOWN (started=0, audio_only=0) */
+    void (*on_track)(void *ctx, const char *title, const char *artist, const char *album); /* UTF-8, "" = unknown */
+    void (*on_cover_art)(void *ctx, const uint8_t *image, size_t size);  /* JPEG or PNG bytes; size 0 = no artwork */
+    void (*on_progress)(void *ctx, double position_s, double duration_s); /* sent at track start, seek and resume, not
+                                                                              periodically: the app advances it */
 } xc_callbacks;
 
 typedef struct xc_receiver xc_receiver;

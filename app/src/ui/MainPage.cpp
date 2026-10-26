@@ -29,6 +29,8 @@
 #include <winrt/Windows.UI.Xaml.Documents.h>
 #include <winrt/Windows.UI.Xaml.Media.h>
 #include <winrt/Windows.UI.Xaml.Media.Animation.h>
+#include <winrt/Windows.UI.Xaml.Media.Imaging.h>
+#include <winrt/Windows.Storage.Streams.h>
 #include <winrt/Windows.UI.Xaml.Shapes.h>
 
 #include "Anim.h"
@@ -161,6 +163,9 @@ void MainPage::InitializeComponent() {
         m_holdCmdKey = Key::None;
         if (k != Key::None) ReleaseKey(k);
     });
+    m_npArtFallback = NowPlayingArt().Background();
+    m_npTimer.Interval(Ms(1000));
+    m_npTimer.Tick([this](IInspectable const&, IInspectable const&) { RefreshNowPlaying(); });
     m_hintTimer.Interval(Ms(3000));
     m_hintTimer.Tick([this](IInspectable const&, IInspectable const&) {
         m_hintTimer.Stop();
@@ -235,6 +240,9 @@ void MainPage::WireBridge() {
     b.onStats = [weak](std::wstring const& json) {
         if (auto self = weak.get()) self->Ui([self, json] { self->m_lastCoreStats = json; });
     };
+    b.onNowPlaying = [weak]() {
+        if (auto self = weak.get()) self->Ui([self] { self->RefreshNowPlaying(); });
+    };
     b.onCommand = [weak](std::wstring const& json) {
         if (auto self = weak.get()) self->Ui([self, json] { self->OnCommand(json); });
     };
@@ -260,7 +268,7 @@ void MainPage::HandleLoaded() {
         UpdateReceiverStatus();
         m_receiverTimer.Start();
     }
-    StartBackdrop(m_state == SessionState::Idle);
+    StartBackdrop(m_state == SessionState::Idle || m_state == SessionState::Audio);
     Focus(FocusState::Programmatic);
 }
 
@@ -609,7 +617,8 @@ char const* MainPage::LayerName() const {
     case Layer::Pin: return "pin";
     case Layer::Settings: return "settings";
     case Layer::Overlay: return "overlay";
-    case Layer::Mirroring: return m_state == SessionState::Connecting ? "connecting" : "mirroring";
+    case Layer::Mirroring:
+        return m_state == SessionState::Connecting ? "connecting" : m_state == SessionState::Audio ? "audio" : "mirroring";
     default: return "idle";
     }
 }
@@ -619,6 +628,12 @@ void MainPage::SetState(SessionState s) {
     SessionState prev = m_state;
     m_state = s;
     Logf('I', "state %d -> %d", static_cast<int>(prev), static_cast<int>(s));
+
+    if (s != SessionState::Audio && prev == SessionState::Audio) {
+        m_npTimer.Stop();
+        anim::Fade(NowPlayingContent(), 0, anim::kNormal);
+        anim::Fade(NowPlayingHints(), 0, anim::kNormal);
+    }
 
     switch (s) {
     case SessionState::Connecting:
@@ -632,6 +647,25 @@ void MainPage::SetState(SessionState s) {
         anim::Fade(ConnectingHint(), 0, 1);
         m_hintTimer.Start();
         m_spinner.Begin();
+        StartBackdrop(true);
+        break;
+    case SessionState::Audio:
+        // Audio-only AirPlay: the idle layer stays (backdrop keeps drifting), the connecting spinner gives way to the
+        // now-playing card. App keeps the display awake (App::StartServices).
+        if (m_overlay) HideOverlay();
+        m_hintTimer.Stop();
+        m_receiverTimer.Stop();
+        m_spinner.Stop();
+        IdleLayer().Visibility(Visibility::Visible);
+        anim::Fade(IdleLayer(), 1, anim::kCalm);
+        anim::Fade(IdleContent(), 0, anim::kNormal);
+        anim::Fade(IdleHints(), 0, anim::kNormal);
+        anim::Fade(ConnectingContent(), 0, anim::kNormal);
+        m_npArtVersion = 0;
+        RefreshNowPlaying();
+        anim::Fade(NowPlayingContent(), 1, anim::kCalm);
+        anim::Fade(NowPlayingHints(), 1, anim::kCalm);
+        m_npTimer.Start();
         StartBackdrop(true);
         break;
     case SessionState::Mirroring:
@@ -703,9 +737,91 @@ void MainPage::OnConnected(std::wstring const& client) {
 
 void MainPage::OnDisconnected(std::wstring const& reason) {
     std::wstring who = m_client.empty() ? L"iPhone" : m_client;
+    bool audio = m_state == SessionState::Audio;
     Logf('I', "disconnected reason=%s", winrt::to_string(reason).c_str());
     SetState(SessionState::Idle);
-    ShowToast(L"Mirroring ended", who + L" disconnected", 4000);
+    ShowToast(audio ? L"AirPlay ended" : L"Mirroring ended", who + L" disconnected", 4000);
+}
+
+namespace {
+std::wstring FormatTime(double s) {
+    if (s < 0 || !std::isfinite(s)) s = 0;
+    long long t = static_cast<long long>(s);
+    wchar_t buf[32];
+    if (t >= 3600) swprintf(buf, 32, L"%lld:%02lld:%02lld", t / 3600, (t / 60) % 60, t % 60);
+    else swprintf(buf, 32, L"%lld:%02lld", t / 60, t % 60);
+    return buf;
+}
+
+std::wstring Upper(std::wstring s) {
+    for (auto& c : s) c = static_cast<wchar_t>(std::towupper(c));
+    return s;
+}
+}  // namespace
+
+void MainPage::RefreshNowPlaying() {
+    if (m_state != SessionState::Audio) return;
+    auto np = xcui::Bridge::Get().NowPlaying(false);
+    std::wstring who = m_client.empty() ? L"iPhone" : m_client;
+    bool paused = np.paused || !np.streaming;
+    NowPlayingSource().Text(Upper(L"Playing from " + who) + (paused ? L"  \u00B7  PAUSED" : L""));
+    NowPlayingTitle().Text(np.title.empty() ? std::wstring(L"AirPlay") : np.title);
+    NowPlayingArtist().Text(np.artist);
+    NowPlayingArtist().Visibility(np.artist.empty() ? Visibility::Collapsed : Visibility::Visible);
+    NowPlayingAlbum().Text(np.album);
+    NowPlayingAlbum().Visibility(np.album.empty() ? Visibility::Collapsed : Visibility::Visible);
+    if (np.hasProgress && np.duration > 0) {
+        double f = std::clamp(np.position / np.duration, 0.0, 1.0);
+        NowPlayingProgressFill().Width(900.0 * f);
+        NowPlayingElapsed().Text(FormatTime(np.position));
+        NowPlayingRemaining().Text(L"-" + FormatTime(np.duration - np.position));
+        NowPlayingProgress().Visibility(Visibility::Visible);
+    } else {
+        NowPlayingProgress().Visibility(Visibility::Collapsed);
+    }
+    if (np.artVersion != m_npArtVersion) {
+        m_npArtVersion = np.artVersion;
+        auto full = xcui::Bridge::Get().NowPlaying(true);
+        if (full.art.empty()) {
+            NowPlayingArt().Background(m_npArtFallback);
+            NowPlayingArtPlaceholder().Visibility(Visibility::Visible);
+        } else {
+            LoadArt(std::move(full.art), full.artVersion);
+        }
+    }
+}
+
+winrt::fire_and_forget MainPage::LoadArt(std::vector<uint8_t> bytes, uint32_t version) {
+    auto weak = get_weak();
+    size_t size = bytes.size();
+    try {
+        Windows::Storage::Streams::InMemoryRandomAccessStream stream;
+        Windows::Storage::Streams::DataWriter writer(stream);
+        writer.WriteBytes(bytes);
+        co_await writer.StoreAsync();
+        writer.DetachStream();
+        stream.Seek(0);
+        Imaging::BitmapImage bmp;
+        bmp.DecodePixelType(Imaging::DecodePixelType::Logical);
+        bmp.DecodePixelWidth(520);
+        co_await bmp.SetSourceAsync(stream);
+        auto self = weak.get();
+        if (!self || version != self->m_npArtVersion) co_return;   // a newer image arrived meanwhile
+        ImageBrush brush;
+        brush.ImageSource(bmp);
+        brush.Stretch(Stretch::UniformToFill);
+        self->NowPlayingArt().Background(brush);
+        self->NowPlayingArtPlaceholder().Visibility(Visibility::Collapsed);
+        Logf('I', "cover art shown %zu bytes %dx%d", size, bmp.PixelWidth(), bmp.PixelHeight());
+    } catch (hresult_error const& e) {
+        Logf('W', "cover art (%zu bytes) not decodable 0x%08x", size, static_cast<uint32_t>(e.code()));
+        if (auto self = weak.get()) {
+            if (version == self->m_npArtVersion) {
+                self->NowPlayingArt().Background(self->m_npArtFallback);
+                self->NowPlayingArtPlaceholder().Visibility(Visibility::Visible);
+            }
+        }
+    }
 }
 
 void MainPage::OnPin(std::wstring const& pin) {
@@ -743,7 +859,7 @@ void MainPage::OnPin(std::wstring const& pin) {
 }
 
 void MainPage::ShowOverlay() {
-    if (m_state == SessionState::Idle || m_pin || m_settings) return;
+    if (m_state == SessionState::Idle || m_state == SessionState::Audio || m_pin || m_settings) return;
     if (!m_overlay) {
         m_overlay = true;
         OverlayShift().Y(30);
@@ -831,6 +947,11 @@ void MainPage::OverlayKey(Key k) {
 }
 
 void MainPage::MirrorKey(Key k) {
+    if (m_state == SessionState::Audio) {
+        // Now playing: no picture to adjust. X = sound on/off; B (hold) disconnects via PressKey; Menu = settings.
+        if (k == Key::X) SetAudioOn(!m_audioOn, true);
+        return;
+    }
     bool zoomed = m_viewMode == L"Zoom" && m_zoom > kZoomMin + 0.001;
     switch (k) {
     case Key::A: ShowOverlay(); break;

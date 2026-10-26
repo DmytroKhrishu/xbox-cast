@@ -60,6 +60,11 @@ paths are syntax-checked with mingw-w64 gcc (`-DWIN32 -DWINAPI_FAMILY=2`) before
 - No callback fires after `xc_stop` returns.
 - Additive API (no struct change, `XC_API_VERSION` stays 1): `xc_set_log_level` (DEBUG also enables UxPlay's
   protocol log), `xc_set_low_delay_sps`.
+- API 2 (callbacks appended to `xc_callbacks`): audio-only AirPlay. `on_audio_stream(started, audio_only)` from the
+  audio SETUP (`audio_only` = `usingScreen` false and not AAC-ELD) and the audio TEARDOWN; `on_track` from the DMAP
+  `SET_PARAMETER` (`src/dmap.c`: `minm` title, `asar` artist, `asal` album); `on_cover_art` (JPEG/PNG bytes);
+  `on_progress` from `progress: start/curr/end` (RTP 44.1 kHz ticks -> seconds). iOS sends progress at track start,
+  seek and resume only, so the app advances the position by the audio it receives.
 
 ## Threading model
 

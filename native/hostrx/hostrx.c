@@ -368,6 +368,37 @@ static void cb_volume(void *ctx, float db)
     logf_("audio", "volume %.1f dB%s", (double) db, db <= -144.0f ? " (mute)" : "");
 }
 
+static void cb_audio_stream(void *ctx, int started, int audio_only)
+{
+    (void) ctx;
+    logf_("audio", "stream %s%s", started ? "started" : "ended", started ? (audio_only ? " (audio-only AirPlay)" : " (mirroring)") : "");
+}
+
+static void cb_track(void *ctx, const char *title, const char *artist, const char *album)
+{
+    (void) ctx;
+    logf_("audio", "track title=\"%s\" artist=\"%s\" album=\"%s\"", title, artist, album);
+}
+
+static void cb_cover_art(void *ctx, const uint8_t *image, size_t size)
+{
+    FILE *f;
+    (void) ctx;
+    logf_("audio", "cover art %zu bytes", size);
+    if (!size) return;
+    f = fopen(path_join(g.o.out, "cover.img"), "wb");
+    if (f) {
+        fwrite(image, 1, size, f);
+        fclose(f);
+    }
+}
+
+static void cb_progress(void *ctx, double pos, double dur)
+{
+    (void) ctx;
+    logf_("audio", "progress %.1f / %.1f s", pos, dur);
+}
+
 /* ---------------------------------------------------------------- video */
 
 static void cb_video_format(void *ctx, xc_video_codec codec, int w, int h)
@@ -634,6 +665,10 @@ int main(int argc, char **argv)
     cb.on_audio_flush = cb_audio_flush;
     cb.on_volume = cb_volume;
     cb.on_stats = cb_stats;
+    cb.on_audio_stream = cb_audio_stream;
+    cb.on_track = cb_track;
+    cb.on_cover_art = cb_cover_art;
+    cb.on_progress = cb_progress;
 
     logf_("info", "hostrx with %s (API %d)", xc_version_string(), xc_api_version());
     if (!g.o.builtin_mdns) {

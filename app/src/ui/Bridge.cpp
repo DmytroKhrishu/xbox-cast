@@ -45,6 +45,7 @@ SessionState Map(::XboxCast::ReceiverState s) {
     switch (s) {
     case ::XboxCast::ReceiverState::Connecting: return SessionState::Connecting;
     case ::XboxCast::ReceiverState::Mirroring: return SessionState::Mirroring;
+    case ::XboxCast::ReceiverState::Audio: return SessionState::Audio;
     default: return SessionState::Idle;   // Stopped and Idle both show the idle screen
     }
 }
@@ -189,6 +190,9 @@ void Bridge::Start() {
     host.Stats([this](hstring const& json) {
         if (onStats) onStats(json.c_str());
     });
+    host.NowPlayingChanged([this]() {
+        if (onNowPlaying) onNowPlaying();
+    });
     Diag::Command([this](hstring const& json) {
         if (onCommand) onCommand(json.c_str());
     });
@@ -201,6 +205,24 @@ void Bridge::Start() {
 
 SessionState Bridge::State() const {
     return Map(::XboxCast::ReceiverHost::Instance().State());
+}
+
+NowPlayingInfo Bridge::NowPlaying(bool withArt) {
+    auto& host = ::XboxCast::ReceiverHost::Instance();
+    auto n = host.GetNowPlaying(withArt);
+    NowPlayingInfo i;
+    i.title = n.title;
+    i.artist = n.artist;
+    i.album = n.album;
+    if (withArt) i.art = std::move(n.art);
+    i.artVersion = n.artVersion;
+    i.hasProgress = n.hasProgress;
+    i.position = n.positionS;
+    i.duration = n.durationS;
+    i.streaming = n.streaming;
+    int64_t last = host.LastAudioPacketMs();
+    i.paused = n.streaming && (last == 0 || static_cast<int64_t>(GetTickCount64()) - last > 1500);
+    return i;
 }
 
 void Bridge::Disconnect() {

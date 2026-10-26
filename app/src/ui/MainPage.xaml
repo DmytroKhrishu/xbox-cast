@@ -314,6 +314,56 @@
                            Foreground="{StaticResource Text2Brush}"/>
             </StackPanel>
 
+            <!-- ============ Now playing (audio-only AirPlay: the sender picked this receiver from an app's AirPlay
+                 button, not Screen Mirroring). Cover art left, track right, progress under it. ============ -->
+            <Grid x:Name="NowPlayingContent" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="96,0,96,40"
+                  Opacity="0" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <!-- Artwork is the Border's ImageBrush background (a Border's corner radius does not clip child Images). -->
+                <Border x:Name="NowPlayingArt" Width="520" Height="520" CornerRadius="28" Background="{StaticResource FillBrush}"
+                        VerticalAlignment="Center">
+                    <TextBlock x:Name="NowPlayingArtPlaceholder" Text="&#xE8D6;" FontFamily="{StaticResource GlyphFont}" FontSize="160"
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource Text3Brush}"/>
+                </Border>
+                <StackPanel Grid.Column="1" Width="900" Margin="80,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="NowPlayingSource" Text="PLAYING FROM IPHONE" Style="{StaticResource CaptionText}"
+                               TextTrimming="CharacterEllipsis" Margin="0,0,0,20"/>
+                    <TextBlock x:Name="NowPlayingTitle" Text="AirPlay" FontSize="72" FontWeight="SemiBold" CharacterSpacing="-10"
+                               TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis" LineHeight="84"
+                               Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock x:Name="NowPlayingArtist" Text="" FontSize="40" FontWeight="Medium" Margin="0,16,0,0"
+                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock x:Name="NowPlayingAlbum" Text="" FontSize="32" FontWeight="Medium" Margin="0,8,0,0"
+                               TextTrimming="CharacterEllipsis" Foreground="{StaticResource Text2Brush}"/>
+                    <StackPanel x:Name="NowPlayingProgress" Margin="0,56,0,0" Visibility="Collapsed">
+                        <Grid Height="10" Width="900" HorizontalAlignment="Left">
+                            <Border CornerRadius="5" Background="{StaticResource FillBrush}"/>
+                            <Border x:Name="NowPlayingProgressFill" CornerRadius="5" Width="0" HorizontalAlignment="Left"
+                                    Background="{StaticResource AccentBrush}"/>
+                        </Grid>
+                        <Grid Margin="0,16,0,0">
+                            <TextBlock x:Name="NowPlayingElapsed" Text="0:00" FontSize="28" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Text2Brush}"/>
+                            <TextBlock x:Name="NowPlayingRemaining" Text="" FontSize="28" FontWeight="SemiBold" HorizontalAlignment="Right"
+                                       Foreground="{StaticResource Text2Brush}"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+            <StackPanel x:Name="NowPlayingHints" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right"
+                        Margin="0,0,96,54" Height="64" Opacity="0" Visibility="Collapsed">
+                <TextBlock Text="&#xF096;" Style="{StaticResource HintGlyph}"/>
+                <TextBlock Text="Sound" Style="{StaticResource HintText}"/>
+                <TextBlock Text="&#xEDE3;" Style="{StaticResource HintGlyph}"/>
+                <TextBlock Text="Settings" Style="{StaticResource HintText}"/>
+                <TextBlock Text="Hold" Style="{StaticResource HintPreText}"/>
+                <TextBlock Text="&#xF094;" Style="{StaticResource HintGlyph}"/>
+                <TextBlock Text="Disconnect" Style="{StaticResource HintLastText}"/>
+            </StackPanel>
+
             <StackPanel x:Name="IdleCorner" Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="96,0,0,54">
                 <StackPanel Margin="0,0,48,0">
                     <TextBlock Text="NETWORK" Style="{StaticResource CaptionText}" Margin="0,0,0,6"/>

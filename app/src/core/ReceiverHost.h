@@ -55,6 +55,7 @@ typedef struct {
 #include <mutex>
 #include <shared_mutex>
 #include <string>
+#include <vector>
 
 namespace XboxCast
 {
@@ -75,8 +76,20 @@ namespace XboxCast
 
     // Stopped: receiver not running (not built in, start failed, or suspended).
     // Idle: advertising, no client. Connecting: a client connected, no video yet. Mirroring: video is flowing.
-    enum class ReceiverState { Stopped, Idle, Connecting, Mirroring };
-    char const* ReceiverStateName(ReceiverState s);   // "stopped" | "idle" | "connecting" | "mirroring"
+    // Audio: audio-only AirPlay (the sender chose us from an app's AirPlay button, not Screen Mirroring): no video.
+    enum class ReceiverState { Stopped, Idle, Connecting, Mirroring, Audio };
+    char const* ReceiverStateName(ReceiverState s);   // "stopped" | "idle" | "connecting" | "mirroring" | "audio"
+
+    // What the sender is playing in audio-only AirPlay. Every field may be empty / 0 (apps send what they like).
+    struct NowPlaying
+    {
+        std::wstring title, artist, album;
+        std::vector<uint8_t> art;          // JPEG/PNG as sent; empty = none
+        uint32_t artVersion = 0;           // bumps whenever art changes (cheap change check)
+        bool hasProgress = false;          // the sender reported a position/duration for this track
+        double positionS = 0, durationS = 0; // position = last report + audio played since (stops while paused)
+        bool streaming = false;            // an audio stream is set up (false after the sender tore it down)
+    };
 
     struct ClientInfo
     {
@@ -105,6 +118,8 @@ namespace XboxCast
         std::string CastcoreVersion() const;    // "" without castcore
         std::string LastError();
         winrt::Windows::Data::Json::JsonObject StatusJson();   // /status "receiver" section
+        NowPlaying GetNowPlaying(bool withArt);   // withArt=false leaves art empty (cheap 1 Hz polling)
+        int64_t LastAudioPacketMs() const { return m_lastAudioMs.load(); }   // GetTickCount64 of the last packet, 0 = none
 
         // Events (any thread, see the threading note at the top).
         winrt::event_token Connected(winrt::delegate<ClientInfo> const& h) { return m_connected.add(h); }
@@ -117,6 +132,9 @@ namespace XboxCast
         void Stats(winrt::event_token const& t) noexcept { m_stats.remove(t); }
         winrt::event_token StateChanged(winrt::delegate<ReceiverState> const& h) { return m_stateChanged.add(h); }
         void StateChanged(winrt::event_token const& t) noexcept { m_stateChanged.remove(t); }
+        // Track, art, progress or stream state changed: read GetNowPlaying().
+        winrt::event_token NowPlayingChanged(winrt::delegate<> const& h) { return m_nowPlayingChanged.add(h); }
+        void NowPlayingChanged(winrt::event_token const& t) noexcept { m_nowPlayingChanged.remove(t); }
 
         // castcore callback trampolines (public so the C callbacks in ReceiverHost.cpp can reach them).
         void OnCoreLog(int level, char const* msg);
@@ -131,6 +149,10 @@ namespace XboxCast
         void OnCoreAudioFlush();
         void OnCoreVolume(float db);
         void OnCoreStats(char const* json);
+        void OnCoreAudioStream(bool started, bool audioOnly);
+        void OnCoreTrack(char const* title, char const* artist, char const* album);
+        void OnCoreCoverArt(uint8_t const* image, size_t size);
+        void OnCoreProgress(double positionS, double durationS);
         int OnCoreMdnsPublish(char const* type, char const* instance, unsigned short port, void const* txt, size_t count);
         void OnCoreMdnsUnpublishAll();
 
@@ -162,11 +184,17 @@ namespace XboxCast
         std::atomic<uint64_t> m_videoFrames{ 0 };
         std::atomic<uint64_t> m_videoBytes{ 0 };
         std::atomic<uint64_t> m_audioPackets{ 0 };
+        std::atomic<int64_t> m_lastAudioMs{ 0 };
+        std::atomic<uint64_t> m_samplesSinceProgress{ 0 };   // audio samples received since the last progress report
+        std::atomic<int> m_samplesPerPacket{ 0 };            // from the audio format (ALAC 352, AAC-LC 1024, ELD 480)
+        NowPlaying m_nowPlaying;                // guarded by m_infoLock
+        void RaiseNowPlaying();
 
         winrt::event<winrt::delegate<ClientInfo>> m_connected;
         winrt::event<winrt::delegate<winrt::hstring>> m_disconnected;
         winrt::event<winrt::delegate<winrt::hstring>> m_pin;
         winrt::event<winrt::delegate<winrt::hstring>> m_stats;
         winrt::event<winrt::delegate<ReceiverState>> m_stateChanged;
+        winrt::event<winrt::delegate<>> m_nowPlayingChanged;
     };
 }

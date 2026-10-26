@@ -79,6 +79,8 @@ struct MainPage : MainPageT<MainPage> {
     void OnConnected(std::wstring const& client);
     void OnDisconnected(std::wstring const& reason);
     void OnPin(std::wstring const& pin);
+    void RefreshNowPlaying();
+    winrt::fire_and_forget LoadArt(std::vector<uint8_t> bytes, uint32_t version);
     void ShowOverlay();
     void HideOverlay();
     void OverlayKey(xcui::Key k);
@@ -185,6 +187,11 @@ struct MainPage : MainPageT<MainPage> {
     Windows::UI::Composition::SpriteVisual m_vignette{nullptr};
     Windows::UI::Xaml::Media::Animation::Storyboard m_spinner{nullptr};
     bool m_backdropRunning = false;
+
+    // now playing (audio-only AirPlay)
+    Windows::UI::Xaml::DispatcherTimer m_npTimer;   // 1 Hz progress while the now-playing screen shows
+    uint32_t m_npArtVersion = 0;
+    Windows::UI::Xaml::Media::Brush m_npArtFallback{nullptr};
 
     Windows::System::Display::DisplayRequest m_displayRequest{nullptr};
     bool m_displayActive = false;

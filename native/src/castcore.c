@@ -21,6 +21,7 @@
 #include "raop.h"
 #include "stream.h"
 
+#include "dmap.h"
 #include "h264_sps.h"
 
 #ifdef _MSC_VER
@@ -87,6 +88,7 @@ struct xc_receiver {
 
     /* audio */
     int      a_ct;
+    int      a_stream;              /* an audio RTP session is set up (cleared at audio TEARDOWN / last connection) */
     float    volume;
 
     /* stats (since last tick / since start) */
@@ -396,8 +398,61 @@ static void cb_audio_get_format(void *cls, unsigned char *ct, unsigned short *sp
     }
     MUTEX_LOCK(r->lock);
     r->a_ct = *ct;
+    r->a_stream = 1;
     MUTEX_UNLOCK(r->lock);
     if (r->cb.on_audio_format) r->cb.on_audio_format(r->cb.ctx, codec, 44100, 2, cfg, cfg_len);
+    /* Screen Mirroring sends usingScreen=1 with AAC-ELD next to the video stream; AirPlay from an app's AirPlay button
+       sends usingScreen=0 with ALAC (or AAC-LC), no video. Require both so a mirroring session never flashes the
+       audio-only screen. */
+    if (r->cb.on_audio_stream) r->cb.on_audio_stream(r->cb.ctx, 1, (!*using_screen && *ct != CT_AAC_ELD) ? 1 : 0);
+}
+
+/* audio TEARDOWN (UxPlay calls this "stop coverart rendering": the audio RTP session of this connection ended) */
+static void cb_audio_stop(void *cls)
+{
+    xc_receiver *r = (xc_receiver *) cls;
+    int was;
+    MUTEX_LOCK(r->lock);
+    was = r->a_stream;
+    r->a_stream = 0;
+    MUTEX_UNLOCK(r->lock);
+    xc_log(r, XC_LOG_INFO, "audio: stream torn down");
+    if (was && r->cb.on_audio_stream) r->cb.on_audio_stream(r->cb.ctx, 0, 0);
+}
+
+static void cb_audio_set_metadata(void *cls, const void *buffer, int buflen)
+{
+    xc_receiver *r = (xc_receiver *) cls;
+    xc_dmap_track t;
+    int n = buflen > 0 ? xc_dmap_parse_track((const uint8_t *) buffer, (size_t) buflen, &t) : -1;
+    if (n < 0) {
+        xc_log(r, XC_LOG_WARN, "audio: unparseable track metadata (%d bytes)", buflen);
+        return;
+    }
+    xc_log(r, XC_LOG_INFO, "audio: track metadata %d bytes, %d fields (title %zu B, artist %zu B, album %zu B)",
+           buflen, n, strlen(t.title), strlen(t.artist), strlen(t.album));
+    if (r->cb.on_track) r->cb.on_track(r->cb.ctx, t.title, t.artist, t.album);
+}
+
+static void cb_audio_set_coverart(void *cls, const void *buffer, int buflen)
+{
+    xc_receiver *r = (xc_receiver *) cls;
+    xc_log(r, XC_LOG_INFO, "audio: cover art %d bytes", buflen);
+    if (r->cb.on_cover_art) r->cb.on_cover_art(r->cb.ctx, (const uint8_t *) buffer, buflen > 0 ? (size_t) buflen : 0);
+}
+
+static void cb_audio_set_progress(void *cls, uint32_t *start, uint32_t *curr, uint32_t *end)
+{
+    xc_receiver *r = (xc_receiver *) cls;
+    /* RTP timestamps at 44.1 kHz; unsigned differences survive a wrap of the 32-bit counter */
+    double pos = (double) (uint32_t) (*curr - *start) / 44100.0;
+    double dur = (double) (uint32_t) (*end - *start) / 44100.0;
+    if (*end == *start || pos > dur) {
+        xc_log(r, XC_LOG_DEBUG, "audio: progress ignored (%u/%u/%u)", *start, *curr, *end);
+        return;
+    }
+    xc_log(r, XC_LOG_INFO, "audio: progress %.1f / %.1f s", pos, dur);
+    if (r->cb.on_progress) r->cb.on_progress(r->cb.ctx, pos, dur);
 }
 
 static void cb_audio_process(void *cls, raop_ntp_t *ntp, audio_decode_struct *data)
@@ -506,6 +561,7 @@ static void cb_conn_destroy(void *cls)
         r->missed_feedback = 0;
         r->pin_shown = 0;
         r->a_ct = 0;
+        r->a_stream = 0;
     }
     MUTEX_UNLOCK(r->lock);
     if (last) {
@@ -860,6 +916,10 @@ int xc_start(xc_receiver *r)
     cbs.audio_set_client_volume = cb_audio_set_client_volume;
     cbs.audio_set_volume = cb_audio_set_volume;
     cbs.audio_get_format = cb_audio_get_format;
+    cbs.audio_set_metadata = cb_audio_set_metadata;
+    cbs.audio_set_coverart = cb_audio_set_coverart;
+    cbs.audio_stop_coverart_rendering = cb_audio_stop;
+    cbs.audio_set_progress = cb_audio_set_progress;
     cbs.report_client_request = cb_report_client_request;
     cbs.report_client_address = cb_report_client_address;
     cbs.display_pin = cb_display_pin;

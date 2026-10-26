@@ -4,6 +4,8 @@
 #include "diag/Diag.h"
 #include "settings/Settings.h"
 
+#include <cstring>
+
 using namespace winrt;
 using namespace Windows::Data::Json;
 
@@ -16,6 +18,7 @@ namespace XboxCast
         case ReceiverState::Idle: return "idle";
         case ReceiverState::Connecting: return "connecting";
         case ReceiverState::Mirroring: return "mirroring";
+        case ReceiverState::Audio: return "audio";
         default: return "stopped";
         }
     }
@@ -168,6 +171,14 @@ namespace XboxCast
         o.SetNamedValue(L"videoFormat", JsonValue::CreateStringValue(H(m_videoFormat.c_str())));
         o.SetNamedValue(L"audioFormat", JsonValue::CreateStringValue(H(m_audioFormat.c_str())));
         o.SetNamedValue(L"lastError", JsonValue::CreateStringValue(H(m_lastError.c_str())));
+        {
+            JsonObject np;
+            np.SetNamedValue(L"streaming", JsonValue::CreateBooleanValue(m_nowPlaying.streaming));
+            np.SetNamedValue(L"hasTitle", JsonValue::CreateBooleanValue(!m_nowPlaying.title.empty()));
+            np.SetNamedValue(L"artBytes", JsonValue::CreateNumberValue(static_cast<double>(m_nowPlaying.art.size())));
+            np.SetNamedValue(L"durationS", JsonValue::CreateNumberValue(m_nowPlaying.durationS));
+            o.SetNamedValue(L"nowPlaying", np);   // no titles in /status: what the owner listens to stays off the log
+        }
         JsonObject stats;
         if (!m_lastStats.empty()) JsonObject::TryParse(H(m_lastStats.c_str()), stats);
         o.SetNamedValue(L"coreStats", stats);
@@ -234,6 +245,10 @@ namespace XboxCast
         void CbAudioFlush(void* ctx) { Self(ctx)->OnCoreAudioFlush(); }
         void CbVolume(void* ctx, float db) { Self(ctx)->OnCoreVolume(db); }
         void CbStats(void* ctx, char const* j) { Self(ctx)->OnCoreStats(j); }
+        void CbAudioStream(void* ctx, int started, int audioOnly) { Self(ctx)->OnCoreAudioStream(started != 0, audioOnly != 0); }
+        void CbTrack(void* ctx, char const* t, char const* ar, char const* al) { Self(ctx)->OnCoreTrack(t, ar, al); }
+        void CbCoverArt(void* ctx, uint8_t const* img, size_t n) { Self(ctx)->OnCoreCoverArt(img, n); }
+        void CbProgress(void* ctx, double pos, double dur) { Self(ctx)->OnCoreProgress(pos, dur); }
     }
 #endif
 
@@ -277,6 +292,10 @@ namespace XboxCast
         cb.on_audio_flush = CbAudioFlush;
         cb.on_volume = CbVolume;
         cb.on_stats = CbStats;
+        cb.on_audio_stream = CbAudioStream;
+        cb.on_track = CbTrack;
+        cb.on_cover_art = CbCoverArt;
+        cb.on_progress = CbProgress;
 
         Diag::Log(Diag::Level::Info, "core",
                   "starting %s (api %d, app built for %d) name='%s' id=%ls display=%dx%d@%d maxFps=%d h265=%d pin=%d mdns=%s data=%s",
@@ -372,7 +391,10 @@ namespace XboxCast
             m_connectedAt = static_cast<int64_t>(GetTickCount64());
             m_videoFormat.clear();
             m_audioFormat.clear();
+            m_nowPlaying = {};
         }
+        m_samplesSinceProgress = 0;
+        m_lastAudioMs = 0;
         m_videoFrames = 0;
         m_videoBytes = 0;
         m_audioPackets = 0;
@@ -390,6 +412,7 @@ namespace XboxCast
             if (m_connectedAt) secs = (static_cast<int64_t>(GetTickCount64()) - m_connectedAt) / 1000;
             m_client = {};
             m_connectedAt = 0;
+            m_nowPlaying = {};
         }
         Diag::Log(Diag::Level::Info, "core", "client disconnected reason='%s' after %llds frames=%llu audio=%llu",
                   reason ? reason : "", secs, m_videoFrames.load(), m_audioPackets.load());
@@ -425,7 +448,8 @@ namespace XboxCast
                       frame->width, frame->height);
         }
         m_videoBytes += frame->size;
-        if (m_state.load() == ReceiverState::Connecting) SetState(ReceiverState::Mirroring);
+        auto st = m_state.load();
+        if (st == ReceiverState::Connecting || st == ReceiverState::Audio) SetState(ReceiverState::Mirroring);
         std::shared_lock<std::shared_mutex> g(m_sinkLock);
         if (m_video) m_video->OnFrame(*frame);
     }
@@ -446,6 +470,7 @@ namespace XboxCast
             m_audioFormat = buf;
         }
         Diag::Log(Diag::Level::Info, "audio", "format %s config=%zu bytes", buf, n);
+        m_samplesPerPacket = codec == XC_AUDIO_ALAC ? 352 : codec == XC_AUDIO_AAC_LC ? 1024 : codec == XC_AUDIO_AAC_ELD ? 480 : 0;
         std::shared_lock<std::shared_mutex> g(m_sinkLock);
         if (m_audio) m_audio->OnFormat(codec, rate, ch, cfg, n);
     }
@@ -454,6 +479,10 @@ namespace XboxCast
     {
         if (!packet) return;
         if (m_audioPackets++ == 0) Diag::Log(Diag::Level::Info, "audio", "first packet %zu bytes", packet->size);
+        m_lastAudioMs = static_cast<int64_t>(GetTickCount64());
+        int spp = m_samplesPerPacket.load();
+        // PCM: 16-bit stereo -> 4 bytes per sample frame
+        m_samplesSinceProgress += spp ? static_cast<uint64_t>(spp) : packet->size / 4;
         std::shared_lock<std::shared_mutex> g(m_sinkLock);
         if (m_audio) m_audio->OnPacket(*packet);
     }
@@ -479,6 +508,91 @@ namespace XboxCast
             m_lastStats = json ? json : "";
         }
         Raise(m_stats, H(json), "Stats");
+    }
+
+    // ---- audio-only AirPlay (now playing) -------------------------------------------------------------------------------
+
+    void ReceiverHost::RaiseNowPlaying()
+    {
+        try { m_nowPlayingChanged(); }
+        catch (...) { Diag::Log(Diag::Level::Error, "core", "NowPlayingChanged handler threw"); }
+    }
+
+    NowPlaying ReceiverHost::GetNowPlaying(bool withArt)
+    {
+        NowPlaying n;
+        {
+            std::lock_guard<std::mutex> g(m_infoLock);
+            n.title = m_nowPlaying.title;
+            n.artist = m_nowPlaying.artist;
+            n.album = m_nowPlaying.album;
+            if (withArt) n.art = m_nowPlaying.art;
+            n.artVersion = m_nowPlaying.artVersion;
+            n.hasProgress = m_nowPlaying.hasProgress;
+            n.positionS = m_nowPlaying.positionS;
+            n.durationS = m_nowPlaying.durationS;
+            n.streaming = m_nowPlaying.streaming;
+        }
+        if (n.hasProgress)
+        {
+            n.positionS += static_cast<double>(m_samplesSinceProgress.load()) / 44100.0;
+            if (n.durationS > 0 && n.positionS > n.durationS) n.positionS = n.durationS;
+        }
+        return n;
+    }
+
+    void ReceiverHost::OnCoreAudioStream(bool started, bool audioOnly)
+    {
+        Diag::Log(Diag::Level::Info, "audio", "stream %s%s", started ? "started" : "ended",
+                  started ? (audioOnly ? " (audio-only AirPlay)" : " (with screen mirroring)") : "");
+        {
+            std::lock_guard<std::mutex> g(m_infoLock);
+            m_nowPlaying.streaming = started;
+        }
+        // Audio-only: there will be no video, so leave the "Connecting" screen for the now-playing one. A mirroring
+        // session (usingScreen) keeps waiting for its first frame. Video arriving later still switches to Mirroring.
+        if (started && audioOnly && m_state.load() == ReceiverState::Connecting) SetState(ReceiverState::Audio);
+        RaiseNowPlaying();
+    }
+
+    void ReceiverHost::OnCoreTrack(char const* title, char const* artist, char const* album)
+    {
+        {
+            std::lock_guard<std::mutex> g(m_infoLock);
+            m_nowPlaying.title = H(title).c_str();
+            m_nowPlaying.artist = H(artist).c_str();
+            m_nowPlaying.album = H(album).c_str();
+        }
+        Diag::Log(Diag::Level::Info, "audio", "track: title %zu B, artist %zu B, album %zu B", title ? strlen(title) : 0,
+                  artist ? strlen(artist) : 0, album ? strlen(album) : 0);
+        RaiseNowPlaying();
+    }
+
+    void ReceiverHost::OnCoreCoverArt(uint8_t const* image, size_t size)
+    {
+        static constexpr size_t kMaxArt = 8 * 1024 * 1024;   // senders send ~30-600 KB; refuse anything absurd
+        {
+            std::lock_guard<std::mutex> g(m_infoLock);
+            if (image && size && size <= kMaxArt) m_nowPlaying.art.assign(image, image + size);
+            else m_nowPlaying.art.clear();
+            m_nowPlaying.artVersion++;
+        }
+        Diag::Log(size > kMaxArt ? Diag::Level::Warn : Diag::Level::Info, "audio", "cover art %zu bytes%s", size,
+                  size > kMaxArt ? " (too large, dropped)" : "");
+        RaiseNowPlaying();
+    }
+
+    void ReceiverHost::OnCoreProgress(double positionS, double durationS)
+    {
+        {
+            std::lock_guard<std::mutex> g(m_infoLock);
+            m_nowPlaying.hasProgress = durationS > 0;
+            m_nowPlaying.positionS = positionS;
+            m_nowPlaying.durationS = durationS;
+            m_samplesSinceProgress = 0;
+        }
+        Diag::Log(Diag::Level::Info, "audio", "progress %.1f / %.1f s", positionS, durationS);
+        RaiseNowPlaying();
     }
 
     int ReceiverHost::OnCoreMdnsPublish(char const* type, char const* instance, unsigned short port, void const* txt, size_t count)
